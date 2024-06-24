@@ -19,9 +19,7 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       containers:
-      - image: ubuntu:20.04
-        #command: ["/bin/bash","-c","source /opt/hygondriver/env.sh && sleep infinity"]
-        command: ["sleep","infinity"]
+      - image: projecthami/mock-device-plugin:latest 
         name: hami-mock-dp-cntr
         env:
           - name: NODE_NAME

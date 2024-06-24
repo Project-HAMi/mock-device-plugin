@@ -80,6 +80,8 @@ func Initialize() {
 func GlobalFlagSet() {
 	nvidia.ParseConfig()
 	cambricon.ParseConfig()
+	iluvatar.ParseConfig()
+	ascend.ParseConfig()
 	flag.BoolVar(&DebugMode, "debug", false, "debug mode")
 }
 
