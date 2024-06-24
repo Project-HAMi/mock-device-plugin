@@ -18,21 +18,16 @@ package util
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
-	"github.com/HAMi/dcu-vgpu-device-plugin/internal/pkg/api"
-	"github.com/HAMi/dcu-vgpu-device-plugin/internal/pkg/util/client"
-	"github.com/HAMi/dcu-vgpu-device-plugin/internal/pkg/util/nodelock"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/util/client"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8stypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 )
 
@@ -270,155 +265,4 @@ func GetContainerDeviceStrArray(c ContainerDevices) []string {
 		tmp = append(tmp, val.UUID)
 	}
 	return tmp
-}
-
-func EraseNextDeviceTypeFromAnnotation(dtype string, p corev1.Pod) error {
-	pdevices, err := DecodePodDevices(InRequestDevices, p.Annotations)
-	if err != nil {
-		return err
-	}
-	res := PodSingleDevice{}
-	pd, ok := pdevices[dtype]
-	if !ok {
-		return errors.New("erase device annotation not found")
-	}
-	found := false
-	for _, val := range pd {
-		if found {
-			res = append(res, val)
-		} else {
-			if len(val) > 0 {
-				found = true
-				res = append(res, ContainerDevices{})
-			} else {
-				res = append(res, val)
-			}
-		}
-	}
-	klog.Infoln("After erase res=", res)
-	newannos := make(map[string]string)
-	newannos[InRequestDevices[dtype]] = EncodePodSingleDevice(res)
-	return PatchPodAnnotations(&p, newannos)
-}
-
-func PatchNodeAnnotations(node *corev1.Node, annotations map[string]string) error {
-	type patchMetadata struct {
-		Annotations map[string]string `json:"annotations,omitempty"`
-	}
-	type patchPod struct {
-		Metadata patchMetadata `json:"metadata"`
-		//Spec     patchSpec     `json:"spec,omitempty"`
-	}
-
-	p := patchPod{}
-	p.Metadata.Annotations = annotations
-
-	bytes, err := json.Marshal(p)
-	if err != nil {
-		return err
-	}
-	_, err = client.GetClient().CoreV1().Nodes().
-		Patch(context.Background(), node.Name, k8stypes.StrategicMergePatchType, bytes, metav1.PatchOptions{})
-	if err != nil {
-		klog.Infoln("annotations=", annotations)
-		klog.Infof("patch pod %v failed, %v", node.Name, err)
-	}
-	return err
-}
-
-func PatchPodAnnotations(pod *corev1.Pod, annotations map[string]string) error {
-	type patchMetadata struct {
-		Annotations map[string]string `json:"annotations,omitempty"`
-	}
-	type patchPod struct {
-		Metadata patchMetadata `json:"metadata"`
-		//Spec     patchSpec     `json:"spec,omitempty"`
-	}
-
-	p := patchPod{}
-	p.Metadata.Annotations = annotations
-
-	bytes, err := json.Marshal(p)
-	if err != nil {
-		return err
-	}
-	klog.V(5).Infof("patch pod %s/%s annotation content is %s", pod.Namespace, pod.Name, string(bytes))
-	_, err = client.GetClient().CoreV1().Pods(pod.Namespace).
-		Patch(context.Background(), pod.Name, k8stypes.StrategicMergePatchType, bytes, metav1.PatchOptions{})
-	if err != nil {
-		klog.Infof("patch pod %v failed, %v", pod.Name, err)
-	}
-	return err
-}
-
-func InitKlogFlags() *flag.FlagSet {
-	// Init log flags
-	flagset := flag.NewFlagSet("klog", flag.ExitOnError)
-	klog.InitFlags(flagset)
-
-	return flagset
-}
-
-func CheckHealth(devType string, n *corev1.Node) (bool, bool) {
-	handshake := n.Annotations[HandshakeAnnos[devType]]
-	if strings.Contains(handshake, "Requesting") {
-		formertime, _ := time.Parse("2006.01.02 15:04:05", strings.Split(handshake, "_")[1])
-		return time.Now().Before(formertime.Add(time.Second * 60)), false
-	} else if strings.Contains(handshake, "Deleted") {
-		return true, false
-	} else {
-		return true, true
-	}
-}
-
-func MarkAnnotationsToDelete(devType string, nn string) error {
-	tmppat := make(map[string]string)
-	tmppat[devType] = "Deleted_" + time.Now().Format("2006.01.02 15:04:05")
-	n, err := GetNode(nn)
-	if err != nil {
-		klog.Errorln("get node failed", err.Error())
-		return err
-	}
-	return PatchNodeAnnotations(n, tmppat)
-}
-
-func PodAllocationTrySuccess(nodeName string, devName string, lockName string, pod *corev1.Pod) {
-	refreshed, err := client.GetClient().CoreV1().Pods(pod.Namespace).Get(context.Background(), pod.Name, metav1.GetOptions{})
-	if err != nil {
-		klog.Errorf("get pods %s/%s error: %+v", pod.Namespace, pod.Name, err)
-		return
-	}
-	annos := refreshed.Annotations[InRequestDevices[devName]]
-	klog.Infoln("TrySuccess:", annos)
-	if strings.Contains(annos, HygonDCUDevice) {
-		return
-	}
-	klog.Infoln("AllDevicesAllocateSuccess releasing lock")
-	PodAllocationSuccess(nodeName, pod, lockName)
-}
-
-func PodAllocationSuccess(nodeName string, pod *corev1.Pod, lockname string) {
-	newannos := make(map[string]string)
-	newannos[DeviceBindPhase] = DeviceBindSuccess
-	err := PatchPodAnnotations(pod, newannos)
-	if err != nil {
-		klog.Errorf("patchPodAnnotations failed:%v", err.Error())
-	}
-	err = nodelock.ReleaseNodeLock(nodeName, lockname)
-	if err != nil {
-		klog.Errorf("release lock failed:%v", err.Error())
-	}
-}
-
-func PodAllocationFailed(nodeName string, pod *corev1.Pod, lockname string) {
-	newannos := make(map[string]string)
-	newannos[DeviceBindPhase] = DeviceBindFailed
-	err := PatchPodAnnotations(pod, newannos)
-	if err != nil {
-		klog.Errorf("patchPodAnnotations failed:%v", err.Error())
-	}
-	err = nodelock.ReleaseNodeLock(nodeName, lockname)
-	if err != nil {
-		klog.Errorf("release lock failed:%v", err.Error())
-	}
 }

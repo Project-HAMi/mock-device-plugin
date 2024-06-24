@@ -55,7 +55,10 @@ type DevicePluginConfigs struct {
 }
 
 var (
-	DebugMode bool
+	NvidiaGPUMemory           string
+	NvidiaGPUCores            string
+	NvidiaGPUMemoryPercentage string
+	DebugMode                 bool
 
 	DeviceSplitCount    *uint
 	DeviceMemoryScaling *float64
