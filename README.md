@@ -77,7 +77,7 @@ Usage:
 | :---        |    :----:   |
 | Nvidia GPU      | nvidia.com/gpumem, nvidia.com/gpumem-percentage, nvidia.com/gpucores        |
 | Cambricon MLU   | cambricon.com/vmlu        |
-| Iluvatar GPU    | iluvatar.ai/vgpu iluvatar.ai/vCore |
+| Iluvatar GPU    | iluvatar.ai/vgpu, iluvatar.ai/vCore |
 | Ascend 910B     | huawei.com/Ascend910-memory |
 
 ## Maintainer
