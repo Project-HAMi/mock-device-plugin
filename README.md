@@ -1,4 +1,6 @@
 # Mock device plugin for HAMi
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FProject-HAMi%2Fmock-device-plugin.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2FProject-HAMi%2Fmock-device-plugin?ref=badge_shield)
+
 
 ## Introduction
 This is a [Kubernetes][k8s] [device plugin][dp] implementation that enables the registration of virtual-devices which would normally be ignored by scheduler (i.e gpu-memory, gpu-cores, etc..)on each node. After deployment, these resources will be available on node.status.allocatable and node.status.capacity
@@ -83,3 +85,6 @@ Usage:
 ## Maintainer
 
 limengxuan@4paradigm.com
+
+## License
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2FProject-HAMi%2Fmock-device-plugin.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2FProject-HAMi%2Fmock-device-plugin?ref=badge_large)
