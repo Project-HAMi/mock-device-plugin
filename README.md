@@ -1,12 +1,11 @@
 # Mock device plugin for HAMi
 
 ## Introduction
-This is a [Kubernetes][k8s] [device plugin][dp] implementation that enables the registration of virtual-devices which would normally be ignored by scheduler (i.e gpu-memory, gpu-cores, etc..)on each node. After deployment, these resources will be available on node.status.allocatable and node.status.capacity
 
+This is a Kubernetes device plugin implementation that enables the registration of virtual-devices which would normally be ignored by scheduler (i.e gpu-memory, gpu-cores, etc..)on each node. After deployment, these resources will be available on `node.status.allocatable` and `node.status.capacity`
 
-
-## Limitations
-* This plugin targets Kubernetes v1.18+.
+## Prerequisites
+- Kubernetes version >= v1.18
 
 ## Deployment
 ```
