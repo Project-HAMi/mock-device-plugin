@@ -25,6 +25,10 @@ import (
 	kubeletdevicepluginv1beta1 "k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
+const (
+	NodeLockDCU = "hami.io/dcumutex.lock"
+)
+
 // Plugin is identical to DevicePluginServer interface of device plugin API.
 type MockPlugin struct {
 	ManagedResource string
