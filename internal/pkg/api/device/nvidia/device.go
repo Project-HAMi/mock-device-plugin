@@ -45,6 +45,58 @@ const (
 	GPUNoUseUUID = "nvidia.com/nouse-gpuuuid"
 )
 
+type LibCudaLogLevel string
+type GPUCoreUtilizationPolicy string
+
+type NvidiaConfig struct {
+	// These configs are shared and can be overwritten by Nodeconfig.
+	NodeDefaultConfig            `yaml:",inline"`
+	ResourceCountName            string `yaml:"resourceCountName"`
+	ResourceMemoryName           string `yaml:"resourceMemoryName"`
+	ResourceCoreName             string `yaml:"resourceCoreName"`
+	ResourceMemoryPercentageName string `yaml:"resourceMemoryPercentageName"`
+	ResourcePriority             string `yaml:"resourcePriorityName"`
+	OverwriteEnv                 bool   `yaml:"overwriteEnv"`
+	DefaultMemory                int32  `yaml:"defaultMemory"`
+	DefaultCores                 int32  `yaml:"defaultCores"`
+	DefaultGPUNum                int32  `yaml:"defaultGPUNum"`
+	// TODO Whether these should be removed
+	DisableCoreLimit  bool                          `yaml:"disableCoreLimit"`
+	MigGeometriesList []AllowedMigGeometries `yaml:"knownMigGeometries"`
+	// GPUCorePolicy through webhook automatic injected to container env
+	GPUCorePolicy GPUCoreUtilizationPolicy `yaml:"gpuCorePolicy"`
+	// RuntimeClassName is the name of the runtime class to be added to pod.spec.runtimeClassName
+	RuntimeClassName string `yaml:"runtimeClassName"`
+}
+
+type MigTemplate struct {
+	Name   string `yaml:"name"`
+	Memory int32  `yaml:"memory"`
+	Count  int32  `yaml:"count"`
+}
+
+type MigTemplateUsage struct {
+	Name   string `json:"name,omitempty"`
+	Memory int32  `json:"memory,omitempty"`
+	InUse  bool   `json:"inuse,omitempty"`
+}
+
+type Geometry []MigTemplate
+
+type AllowedMigGeometries struct {
+	Models     []string   `yaml:"models"`
+	Geometries []Geometry `yaml:"allowedGeometries"`
+}
+
+// These configs can be specified for each node by using Nodeconfig.
+type NodeDefaultConfig struct {
+	DeviceSplitCount    *uint    `yaml:"deviceSplitCount" json:"devicesplitcount"`
+	DeviceMemoryScaling *float64 `yaml:"deviceMemoryScaling" json:"devicememoryscaling"`
+	DeviceCoreScaling   *float64 `yaml:"deviceCoreScaling" json:"devicecorescaling"`
+	// LogLevel is LIBCUDA_LOG_LEVEL value
+	LogLevel *LibCudaLogLevel `yaml:"libCudaLogLevel" json:"libcudaloglevel"`
+}
+
 var (
 	ResourceMem           string
 	ResourceCores         string

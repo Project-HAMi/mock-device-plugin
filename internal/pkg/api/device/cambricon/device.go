@@ -27,6 +27,12 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type CambriconConfig struct {
+	ResourceCountName  string `yaml:"resourceCountName"`
+	ResourceMemoryName string `yaml:"resourceMemoryName"`
+	ResourceCoreName   string `yaml:"resourceCoreName"`
+}
+
 var (
 	ResourceName string
 )

@@ -27,6 +27,25 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type Template struct {
+	Name   string `yaml:"name"`
+	Memory int64  `yaml:"memory"`
+	AICore int32  `yaml:"aiCore,omitempty"`
+	AICPU  int32  `yaml:"aiCPU,omitempty"`
+}
+
+type VNPUConfig struct {
+	CommonWord         string     `yaml:"commonWord"`
+	ChipName           string     `yaml:"chipName"`
+	ResourceName       string     `yaml:"resourceName"`
+	ResourceMemoryName string     `yaml:"resourceMemoryName"`
+	MemoryAllocatable  int64      `yaml:"memoryAllocatable"`
+	MemoryCapacity     int64      `yaml:"memoryCapacity"`
+	AICore             int32      `yaml:"aiCore"`
+	AICPU              int32      `yaml:"aiCPU"`
+	Templates          []Template `yaml:"templates"`
+}
+
 var (
 	ResourceMemoryName string
 )

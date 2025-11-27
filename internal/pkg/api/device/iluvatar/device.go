@@ -27,6 +27,14 @@ import (
 	"k8s.io/klog/v2"
 )
 
+type IluvatarConfig struct {
+	CommonWord         string `yaml:"commonWord"`
+	ChipName           string `yaml:"chipName"`
+	ResourceCountName  string `yaml:"resourceCountName"`
+	ResourceMemoryName string `yaml:"resourceMemoryName"`
+	ResourceCoreName   string `yaml:"resourceCoreName"`
+}
+
 var (
 	ResourceName     string
 	ResourceCoreName string
