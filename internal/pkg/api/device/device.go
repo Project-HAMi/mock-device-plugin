@@ -18,40 +18,49 @@ package device
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
-	"flag"
 	"os"
 	"strconv"
 	"strings"
 
-	"github.com/ccoveille/go-safecast"
-
-	"k8s.io/klog/v2"
-
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/ascend"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/cambricon"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/iluvatar"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/nvidia"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/util/client"
+
+	"github.com/ccoveille/go-safecast"
+	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
 
 type DeviceInfo struct {
-	ID              string            `json:"id,omitempty"`
-	Index           uint              `json:"index,omitempty"`
-	Count           int32             `json:"count,omitempty"`
-	Devmem          int32             `json:"devmem,omitempty"`
-	Devcore         int32             `json:"devcore,omitempty"`
-	Type            string            `json:"type,omitempty"`
-	Numa            int               `json:"numa,omitempty"`
-	Mode            string            `json:"mode,omitempty"`
-	MIGTemplate     []nvidia.Geometry `json:"migtemplate,omitempty"`
-	Health          bool              `json:"health,omitempty"`
-	DeviceVendor    string            `json:"devicevendor,omitempty"`
-	CustomInfo      map[string]any    `json:"custominfo,omitempty"`
-	DevicePairScore DevicePairScore   `json:"devicepairscore,omitempty"`
+	ID              string          `json:"id,omitempty"`
+	Index           uint            `json:"index,omitempty"`
+	Count           int32           `json:"count,omitempty"`
+	Devmem          int32           `json:"devmem,omitempty"`
+	Devcore         int32           `json:"devcore,omitempty"`
+	Type            string          `json:"type,omitempty"`
+	Numa            int             `json:"numa,omitempty"`
+	Mode            string          `json:"mode,omitempty"`
+	MIGTemplate     []Geometry      `json:"migtemplate,omitempty"`
+	Health          bool            `json:"health,omitempty"`
+	DeviceVendor    string          `json:"devicevendor,omitempty"`
+	CustomInfo      map[string]any  `json:"custominfo,omitempty"`
+	DevicePairScore DevicePairScore `json:"devicepairscore,omitempty"`
 }
+
+type MigTemplate struct {
+	Name   string `yaml:"name"`
+	Memory int32  `yaml:"memory"`
+	Count  int32  `yaml:"count"`
+}
+
+type MigTemplateUsage struct {
+	Name   string `json:"name,omitempty"`
+	Memory int32  `json:"memory,omitempty"`
+	InUse  bool   `json:"inuse,omitempty"`
+}
+
+type Geometry []MigTemplate
 
 type DevicePairScores []DevicePairScore
 type DevicePairScore struct {
@@ -62,6 +71,7 @@ type DevicePairScore struct {
 type Devices interface {
 	CommonWord() string
 	GetNodeDevices(n corev1.Node) ([]*DeviceInfo, error)
+	AddResource(n corev1.Node)
 	RunManager()
 }
 
@@ -80,11 +90,8 @@ const (
 )
 
 var (
-	HandshakeAnnos  = map[string]string{}
-	RegisterAnnos   = map[string]string{}
-	DevicesToHandle []string
-	ch              = map[string]chan int{}
-	DevicesMap      map[string]Devices
+	DevicesMap map[string]Devices
+	ch         = map[string]chan int{}
 )
 
 func GetDevices() map[string]Devices {
@@ -92,53 +99,32 @@ func GetDevices() map[string]Devices {
 }
 
 func Initialize() {
-	devices = make(map[string]Devices)
 	nodeName := os.Getenv("NODE_NAME")
 	node, err := client.GetClient().CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
 	if err != nil {
 		klog.Infoln("Get node error", err.Error())
 	}
-	nvidiadevice := nvidia.InitNvidiaDevice(node)
-	if nvidiadevice != nil {
-		devices["NVIDIA"] = nvidiadevice
-		ch["NVIDIA"] = make(chan int)
+	for name, val := range DevicesMap {
+		val.AddResource(*node)
+		ch[name] = make(chan int)
 	}
-	cambricondevice := cambricon.InitCambriconDevice(node)
-	if cambricondevice != nil {
-		devices["CAMBRICON"] = cambricondevice
-		ch["CAMBRICON"] = make(chan int)
-	}
-	iluvatardevice := iluvatar.InitIluvatarGPUDevice(node)
-	if iluvatardevice != nil {
-		devices["Iluvatar"] = iluvatardevice
-		ch["Iluvatar"] = make(chan int)
-	}
-	ascenddevice := ascend.InitAscendDevice(node)
-	if ascenddevice != nil {
-		devices["Ascend"] = ascenddevice
-		ch["Ascend"] = make(chan int)
-	}
-}
-
-func GlobalFlagSet() {
-	amd.ParseConfig()
-	ascend.ParseConfig()
-	awsneuron.ParseConfig()
-	cambricon.ParseConfig()
-	enflame.ParseConfig()
-	hygon.ParseConfig()
-	kunlun.ParseConfig()
-	nvidia.ParseConfig()
 }
 
 func RunManagers() {
-	for idx, val := range devices {
-		klog.Infoln("val.Name=", idx)
-		go val.RunManager()
+	for name, dev := range DevicesMap {
+		klog.Infof("%s run manager", name)
+		go dev.RunManager()
 	}
 	for _, val := range ch {
 		<-val
 	}
+}
+
+func GetResourceName(name string) string {
+	if _, after, found := strings.Cut(name, "/"); found {
+		return after
+	}
+	return name
 }
 
 func UnMarshalNodeDevices(str string) ([]*DeviceInfo, error) {
@@ -226,4 +212,12 @@ func EncodeNodeDevices(dlist []*DeviceInfo) string {
 	tmp := builder.String()
 	klog.V(5).Infof("Encoded node Devices: %s", tmp)
 	return tmp
+}
+
+func DecodePairScores(pairScores string) (*DevicePairScores, error) {
+	devicePairScores := &DevicePairScores{}
+	if err := json.Unmarshal([]byte(pairScores), devicePairScores); err != nil {
+		return nil, err
+	}
+	return devicePairScores, nil
 }

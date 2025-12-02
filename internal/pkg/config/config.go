@@ -17,18 +17,20 @@ limitations under the License.
 package config
 
 import (
+	"flag"
 	"os"
 
 	"gopkg.in/yaml.v2"
 	"k8s.io/klog/v2"
 
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/amd"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/ascend"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/awsneuron"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/cambricon"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/enflame"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/hygon"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/iluvatar"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/hygon"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/kunlun"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/metax"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/mthreads"
@@ -49,6 +51,10 @@ type Config struct {
 	VNPUs           []ascend.VNPUConfig       `yaml:"vnpus"`
 }
 
+var (
+	configFile string
+)
+
 func LoadConfig(path string) (*Config, error) {
 	klog.Infof("Reading config file from path: %s", path)
 	data, err := os.ReadFile(path)
@@ -66,16 +72,16 @@ func LoadConfig(path string) (*Config, error) {
 
 func InitDevicesWithConfig(config *Config) error {
 	device.DevicesMap = make(map[string]device.Devices)
-	amdDevice := amd.InitAMDDevice(config.AMDGPUConfig)
+	/*amdDevice := amd.InitAMDDevice(config.AMDGPUConfig)
 	if amdDevice != nil {
 		device.DevicesMap[amdDevice.CommonWord()] = amdDevice
-	}
+	}*/
 	for _, dev := range ascend.InitDevices(config.VNPUs) {
 		commonWord := dev.CommonWord()
 		device.DevicesMap[commonWord] = dev
 		klog.Infof("Ascend device %s initialized", commonWord)
 	}
-	awsNeuronDevice := awsneuron.InitAWSNeuronDevice(config.AWSNeuronConfig)
+	/*awsNeuronDevice := awsneuron.InitAWSNeuronDevice(config.AWSNeuronConfig)
 	if awsNeuronDevice != nil {
 		device.DevicesMap[awsNeuronDevice.CommonWord()] = awsNeuronDevice
 	}
@@ -98,6 +104,35 @@ func InitDevicesWithConfig(config *Config) error {
 	nvidiaDevice := nvidia.InitNvidiaDevice()
 	if nvidiaDevice != nil {
 		device.DevicesMap[nvidiaDevice.CommonWord()] = nvidiaDevice
-	}
+	}*/
 	return nil
+}
+
+func InitDevices() {
+	if len(device.DevicesMap) > 0 {
+		klog.Info("Devices are already initialized, skipping initialization")
+		return
+	}
+	klog.Infof("Loading device configuration from file: %s", configFile)
+	config, err := LoadConfig(configFile)
+	if err != nil {
+		klog.Fatalf("Failed to load device config file %s: %v", configFile, err)
+	}
+	klog.Infof("Loaded config: %v", config)
+	err = InitDevicesWithConfig(config)
+	if err != nil {
+		klog.Fatalf("Failed to initialize devices: %v", err)
+	}
+}
+
+func GlobalFlagSet() {
+	amd.ParseConfig()
+	ascend.ParseConfig()
+	awsneuron.ParseConfig()
+	cambricon.ParseConfig()
+	enflame.ParseConfig()
+	hygon.ParseConfig()
+	kunlun.ParseConfig()
+	nvidia.ParseConfig()
+	flag.StringVar(&configFile, "device-config-file", "", "Path to the device config file")
 }

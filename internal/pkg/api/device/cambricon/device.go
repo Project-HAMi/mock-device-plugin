@@ -17,13 +17,15 @@ limitations under the License.
 package cambricon
 
 import (
-	"flag"
+	"fmt"
 	"strings"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
+
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
 )
 
@@ -34,6 +36,7 @@ type CambriconConfig struct {
 }
 
 const (
+	CambriconMLUDevice     = "MLU"
 	CambriconMLUCommonWord = "MLU"
 )
 
@@ -93,7 +96,7 @@ type CambriconMLUDevices struct {
 	DM *dpm.Manager
 }
 
-func InitCambriconDevice(n *v1.Node) *CambriconMLUDevices {
+func InitCambriconDevice(n *corev1.Node) *CambriconMLUDevices {
 	num, ok := n.Status.Allocatable["cambricon.com/real-mlu-counts"]
 	if !ok {
 		return nil
@@ -124,8 +127,4 @@ func (dev *CambriconMLUDevices) RunManager() {
 	}()
 	klog.Infoln("Running mocking dp:cambricon")
 	mockmanager.Run()
-}
-
-func ParseConfig() {
-	flag.StringVar(&ResourceName, "mlu-resource-name", "cambricon.com/vmlu", "virtual devices for mlu to be allocated")
 }

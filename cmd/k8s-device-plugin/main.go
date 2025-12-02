@@ -23,6 +23,7 @@ import (
 	"os"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/config"
 )
 
 var gitDescribe string
@@ -40,9 +41,9 @@ func main() {
 		fmt.Fprintln(os.Stderr, "Usage:")
 		flag.PrintDefaults()
 	}
-	// this is also needed to enable glog usage in dpm
-	device.GlobalFlagSet()
+	config.GlobalFlagSet()
 	flag.Parse()
+	config.InitDevices()
 	device.Initialize()
 	device.RunManagers()
 }

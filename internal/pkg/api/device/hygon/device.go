@@ -17,12 +17,11 @@ limitations under the License.
 package hygon
 
 import (
-	"flag"
-	"strings"
+	"errors"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
-	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
+	//"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
+	//"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"

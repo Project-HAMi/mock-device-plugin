@@ -17,9 +17,13 @@ limitations under the License.
 package amd
 
 import (
+	"fmt"
+
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/klog/v2"
 )
 
 const (

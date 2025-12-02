@@ -17,15 +17,14 @@ limitations under the License.
 package kunlun
 
 import (
-	"flag"
-	"strings"
+	"fmt"
+	"errors"
 
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
+	//"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 
-	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
-
-	v1 "k8s.io/api/core/v1"
+	//"github.com/kubevirt/device-plugin-manager/pkg/dpm"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -34,6 +33,11 @@ const (
 	XPUCommonWord  = "XPU"
 	RegisterAnnos  = "hami.io/node-register-xpu"
 	HandshakeAnnos = "hami.io/node-handshake-xpu"
+)
+
+var (
+	KunlunResourceVCount  string
+	KunlunResourceVMemory string
 )
 
 type KunlunConfig struct {

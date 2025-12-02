@@ -17,10 +17,12 @@ limitations under the License.
 package ascend
 
 import (
-	"flag"
-	"strings"
+	"errors"
+	"fmt"
+	"sort"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 
 	corev1 "k8s.io/api/core/v1"
@@ -49,24 +51,21 @@ type VNPUConfig struct {
 type Devices struct {
 	config           VNPUConfig
 	nodeRegisterAnno string
-	useUUIDAnno      string
-	noUseUUIDAnno    string
-	handshakeAnno    string
+	lmock            mock.MockLister
 }
 
 func InitDevices(config []VNPUConfig) []*Devices {
 	var devs []*Devices
-	if !enableAscend {
-		return devs
-	}
 	for _, vnpu := range config {
 		commonWord := vnpu.CommonWord
 		dev := &Devices{
 			config:           vnpu,
 			nodeRegisterAnno: fmt.Sprintf("hami.io/node-register-%s", commonWord),
-			useUUIDAnno:      fmt.Sprintf("hami.io/use-%s-uuid", commonWord),
-			noUseUUIDAnno:    fmt.Sprintf("hami.io/no-use-%s-uuid", commonWord),
-			handshakeAnno:    fmt.Sprintf("hami.io/node-handshake-%s", commonWord),
+			lmock: mock.MockLister{
+				ResUpdateChan: make(chan dpm.PluginNameList),
+				Heartbeat:     make(chan bool),
+				Namespace:     device.GetResourceName(vnpu.ResourceMemoryName),
+			},
 		}
 		sort.Slice(dev.config.Templates, func(i, j int) bool {
 			return dev.config.Templates[i].Memory < dev.config.Templates[j].Memory
@@ -101,47 +100,25 @@ func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) 
 	return nodeDevices, nil
 }
 
-var (
-	ResourceMemoryName string
-)
-
-type AscendNPUDevices struct {
-	DM *dpm.Manager
-}
-
-func InitAscendDevice(n *v1.Node) *AscendNPUDevices {
-	num, ok := n.Status.Allocatable["huawei.com/Ascend910"]
-	if !ok {
-		return nil
+func (dev *Devices) AddResource(n corev1.Node) {
+	devInfos, err := dev.GetNodeDevices(n)
+	if err != nil || len(devInfos) == 0 {
+		klog.Infof("no device %s on this node", dev.config.CommonWord)
+		return
 	}
-	count, ok := num.AsInt64()
-	if !ok {
-		return nil
+	for _, val := range devInfos {
+		mock.Counts[device.GetResourceName(dev.config.ResourceMemoryName)] += int(val.Devmem)
 	}
-
-	dev := &AscendNPUDevices{}
-	index := strings.Index(ResourceMemoryName, "/")
-	mock.Counts[ResourceMemoryName[index+1:]] = int(count) / 10 * 65536
-	return dev
-}
-
-func (dev *AscendNPUDevices) RunManager() {
-	klog.Infoln("runManager.....")
-	index := strings.Index(ResourceMemoryName, "/")
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     ResourceMemoryName[:index],
-	}
-	mockmanager := dpm.NewManager(&lmock)
-
 	go func() {
-		lmock.ResUpdateChan <- []string{ResourceMemoryName[index+1:]}
+		dev.lmock.ResUpdateChan <- []string{device.GetResourceName(dev.config.ResourceMemoryName)}
 	}()
-	klog.Infoln("Running mocking dp:ascend")
+}
+
+func (dev *Devices) RunManager() {
+	mockmanager := dpm.NewManager(&dev.lmock)
+	klog.Infof("Running mocking dp: %s", dev.config.CommonWord)
 	mockmanager.Run()
 }
 
 func ParseConfig() {
-	flag.StringVar(&ResourceMemoryName, "mlu-resource-memory-name", "huawei.com/Ascend910-memory", "virtual memory for npu to be allocated")
 }
