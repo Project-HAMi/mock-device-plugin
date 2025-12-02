@@ -45,10 +45,17 @@ type KunlunConfig struct {
 type KunlunVDevices struct {
 }
 
+func ParseConfig() {
+}
+
 func InitKunlunVDevice(config KunlunConfig) *KunlunVDevices {
 	KunlunResourceVCount = config.ResourceVCountName
 	KunlunResourceVMemory = config.ResourceVMemoryName
 	return &KunlunVDevices{}
+}
+
+func (dev *KunlunVDevices) CommonWord() string {
+	return XPUDevice
 }
 
 func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {

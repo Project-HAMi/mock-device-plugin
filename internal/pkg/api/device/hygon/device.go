@@ -50,11 +50,18 @@ const (
 	HygonDCUCommonWord = "DCU"
 )
 
+func ParseConfig() {
+}
+
 func InitDCUDevice(config HygonConfig) *DCUDevices {
 	HygonResourceCount = config.ResourceCountName
 	HygonResourceMemory = config.ResourceMemoryName
 	HygonResourceCores = config.ResourceCoreName
 	return &DCUDevices{}
+}
+
+func (dev *DCUDevices) CommonWord() string {
+	return HygonDCUCommonWord
 }
 
 func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {

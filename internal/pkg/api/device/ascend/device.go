@@ -77,6 +77,10 @@ func InitDevices(config []VNPUConfig) []*Devices {
 	return devs
 }
 
+func (dev *Devices) CommonWord() string {
+	return dev.config.CommonWord
+}
+
 func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
 	anno, ok := n.Annotations[dev.nodeRegisterAnno]
 	if !ok {

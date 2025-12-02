@@ -57,16 +57,19 @@ const (
 	CountNoSharedName  = "enflame.com/gcu-count"
 )
 
+func ParseConfig() {
+}
+
 func InitEnflameDevice(config EnflameConfig) *EnflameDevices {
 	EnflameResourceNameVGCU = config.ResourceNameVGCU
 	EnflameResourceNameVGCUPercentage = config.ResourceNameVGCUPercentage
-	_, ok := device.SupportDevices[EnflameVGCUDevice]
-	if !ok {
-		device.SupportDevices[EnflameVGCUDevice] = "hami.io/enflame-vgpu-devices-allocated"
-	}
 	return &EnflameDevices{
 		factor: 0,
 	}
+}
+
+func (dev *EnflameDevices) CommonWord() string {
+	return EnflameVGCUCommonWord
 }
 
 func (dev *EnflameDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {

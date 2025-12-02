@@ -43,6 +43,9 @@ type AWSNeuronDevices struct {
 	coremask          uint
 }
 
+func ParseConfig() {
+}
+
 func InitAWSNeuronDevice(config AWSNeuronConfig) *AWSNeuronDevices {
 	return &AWSNeuronDevices{
 		resourceCountName: config.ResourceCountName,
@@ -50,6 +53,10 @@ func InitAWSNeuronDevice(config AWSNeuronConfig) *AWSNeuronDevices {
 		coresPerAWSNeuron: 0,
 		coremask:          0,
 	}
+}
+
+func (dev *AWSNeuronDevices) CommonWord() string {
+	return AWSNeuronCommonWord
 }
 
 func (dev *AWSNeuronDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {

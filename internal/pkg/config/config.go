@@ -63,3 +63,41 @@ func LoadConfig(path string) (*Config, error) {
 	klog.Info("Successfully read and parsed config file")
 	return &yamlData, nil
 }
+
+func InitDevicesWithConfig(config *Config) error {
+	device.DevicesMap = make(map[string]device.Devices)
+	amdDevice := amd.InitAMDDevice(config.AMDGPUConfig)
+	if amdDevice != nil {
+		device.DevicesMap[amdDevice.CommonWord()] = amdDevice
+	}
+	for _, dev := range ascend.InitDevices(config.VNPUs) {
+		commonWord := dev.CommonWord()
+		device.DevicesMap[commonWord] = dev
+		klog.Infof("Ascend device %s initialized", commonWord)
+	}
+	awsNeuronDevice := awsneuron.InitAWSNeuronDevice(config.AWSNeuronConfig)
+	if awsNeuronDevice != nil {
+		device.DevicesMap[awsNeuronDevice.CommonWord()] = awsNeuronDevice
+	}
+	cambriconDevice := cambricon.InitMLUDevice(config.CambriconConfig)
+	if cambriconDevice != nil {
+		device.DevicesMap[cambriconDevice.CommonWord()] = cambriconDevice
+	}
+	enflameDevice := enflame.InitEnflameVGCUDevice(config.EnflameConfig)
+	if enflameDevice != nil {
+		device.DevicesMap[enflameDevice.CommonWord()] = enflameDevice
+	}
+	kunlunDevice := kunlun.InitKunlunVDevice(config.KunlunConfig)
+	if kunlunDevice != nil {
+		device.DevicesMap[kunlunDevice.CommonWord()] = kunlunDevice
+	}
+	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
+	if hygonDevice != nil {
+		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice
+	}
+	nvidiaDevice := nvidia.InitNvidiaDevice()
+	if nvidiaDevice != nil {
+		device.DevicesMap[nvidiaDevice.CommonWord()] = nvidiaDevice
+	}
+	return nil
+}

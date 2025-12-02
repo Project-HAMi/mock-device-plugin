@@ -33,6 +33,10 @@ type CambriconConfig struct {
 	ResourceCoreName   string `yaml:"resourceCoreName"`
 }
 
+const (
+	CambriconMLUCommonWord = "MLU"
+)
+
 var (
 	MLUResourceCount  string
 	MLUResourceMemory string
@@ -46,11 +50,18 @@ var (
 type CambriconDevices struct {
 }
 
+func ParseConfig() {
+}
+
 func InitMLUDevice(config CambriconConfig) *CambriconDevices {
 	MLUResourceCount = config.ResourceCountName
 	MLUResourceMemory = config.ResourceMemoryName
 	MLUResourceCores = config.ResourceCoreName
 	return &CambriconDevices{}
+}
+
+func (dev *CambriconDevices) CommonWord() string {
+	return CambriconMLUCommonWord
 }
 
 func (dev *CambriconDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {

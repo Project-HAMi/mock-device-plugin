@@ -60,6 +60,7 @@ type DevicePairScore struct {
 }
 
 type Devices interface {
+	CommonWord() string
 	GetNodeDevices(n corev1.Node) ([]*DeviceInfo, error)
 	RunManager()
 }
@@ -83,13 +84,11 @@ var (
 	RegisterAnnos   = map[string]string{}
 	DevicesToHandle []string
 	ch              = map[string]chan int{}
+	DevicesMap      map[string]Devices
 )
 
-var devices map[string]Devices
-var DebugMode bool
-
 func GetDevices() map[string]Devices {
-	return devices
+	return DevicesMap
 }
 
 func Initialize() {
@@ -122,11 +121,14 @@ func Initialize() {
 }
 
 func GlobalFlagSet() {
-	nvidia.ParseConfig()
-	cambricon.ParseConfig()
-	iluvatar.ParseConfig()
+	amd.ParseConfig()
 	ascend.ParseConfig()
-	flag.BoolVar(&DebugMode, "debug", false, "debug mode")
+	awsneuron.ParseConfig()
+	cambricon.ParseConfig()
+	enflame.ParseConfig()
+	hygon.ParseConfig()
+	kunlun.ParseConfig()
+	nvidia.ParseConfig()
 }
 
 func RunManagers() {

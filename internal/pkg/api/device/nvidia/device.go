@@ -110,6 +110,10 @@ func InitNvidiaDevice(nvconfig NvidiaConfig) *NvidiaGPUDevices {
 	}
 }
 
+func (dev *NvidiaGPUDevices) CommonWord() string {
+	return NvidiaGPUDevice
+}
+
 func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
 	devEncoded, ok := n.Annotations[RegisterAnnos]
 	if !ok {

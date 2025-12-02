@@ -42,11 +42,18 @@ type AMDDevices struct {
 	resourceMemoryName string
 }
 
+func ParseConfig() {
+}
+
 func InitAMDGPUDevice(config AMDConfig) *AMDDevices {
 	return &AMDDevices{
 		resourceCountName:  config.ResourceCountName,
 		resourceMemoryName: config.ResourceMemoryName,
 	}
+}
+
+func (dev *AMDDevices) CommonWord() string {
+	return AMDCommonWord
 }
 
 func (dev *AMDDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
