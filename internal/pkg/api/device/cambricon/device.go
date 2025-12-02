@@ -22,8 +22,8 @@ import (
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
-
-	v1 "k8s.io/api/core/v1"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
@@ -34,8 +34,49 @@ type CambriconConfig struct {
 }
 
 var (
+	MLUResourceCount  string
+	MLUResourceMemory string
+	MLUResourceCores  string
+)
+
+var (
 	ResourceName string
 )
+
+type CambriconDevices struct {
+}
+
+func InitMLUDevice(config CambriconConfig) *CambriconDevices {
+	MLUResourceCount = config.ResourceCountName
+	MLUResourceMemory = config.ResourceMemoryName
+	MLUResourceCores = config.ResourceCoreName
+	return &CambriconDevices{}
+}
+
+func (dev *CambriconDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+	nodedevices := []*device.DeviceInfo{}
+	i := 0
+	cards, ok := n.Status.Capacity.Name(corev1.ResourceName(MLUResourceCores), resource.DecimalSI).AsInt64()
+	if !ok || cards == 0 {
+		return []*device.DeviceInfo{}, fmt.Errorf("device not found %s", MLUResourceCores)
+	}
+	memoryTotal, _ := n.Status.Capacity.Name(corev1.ResourceName(MLUResourceMemory), resource.DecimalSI).AsInt64()
+	for int64(i)*100 < cards {
+		nodedevices = append(nodedevices, &device.DeviceInfo{
+			Index:        uint(i),
+			ID:           n.Name + "-cambricon-mlu-" + fmt.Sprint(i),
+			Count:        100,
+			Devmem:       int32(memoryTotal * 256 * 100 / cards),
+			Devcore:      100,
+			Type:         CambriconMLUDevice,
+			Numa:         0,
+			Health:       true,
+			DeviceVendor: CambriconMLUCommonWord,
+		})
+		i++
+	}
+	return nodedevices, nil
+}
 
 type CambriconMLUDevices struct {
 	DM *dpm.Manager

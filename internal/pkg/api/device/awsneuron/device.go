@@ -16,7 +16,82 @@ limitations under the License.
 
 package awsneuron
 
+const (
+	AWSNeuronDevice          = "AWSNeuron"
+	AWSNeuronCommonWord      = "AWSNeuron"
+	AWSNeuronDeviceSelection = "aws.amazon.com/neuron-index"
+	AWSNeuronUseUUID         = "aws.amazon.com/use-neuron-uuid"
+	AWSNeuronNoUseUUID       = "aws.amazon.com/nouse-neuron-uuid"
+	AWSNeuronAssignedIndex   = "AWS_NEURON_IDS"
+	AWSNeuronAssignedNode    = "aws.amazon.com/predicate-node"
+	AWSNeuronPredicateTime   = "NEURON_ALLOC_TIME"
+	AWSNeuronResourceType    = "NEURON_RESOURCE_TYPE"
+	AWSNeuronAllocated       = "NEURON_ALLOCATED"
+	AWSUsageInfo             = "awsusageinfo"
+	AWSNodeType              = "AWSNodeType"
+)
+
 type AWSNeuronConfig struct {
 	ResourceCountName string `yaml:"resourceCountName"`
 	ResourceCoreName  string `yaml:"resourceCoreName"`
+}
+
+type AWSNeuronDevices struct {
+	resourceCountName string
+	resourceCoreName  string
+	coresPerAWSNeuron uint
+	coremask          uint
+}
+
+func InitAWSNeuronDevice(config AWSNeuronConfig) *AWSNeuronDevices {
+	return &AWSNeuronDevices{
+		resourceCountName: config.ResourceCountName,
+		resourceCoreName:  config.ResourceCoreName,
+		coresPerAWSNeuron: 0,
+		coremask:          0,
+	}
+}
+
+func (dev *AWSNeuronDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+	nodedevices := []*device.DeviceInfo{}
+	i := 0
+	counts, ok := n.Status.Capacity.Name(corev1.ResourceName(dev.resourceCountName), resource.DecimalSI).AsInt64()
+	if !ok || counts == 0 {
+		return []*device.DeviceInfo{}, fmt.Errorf("device not found %s", dev.resourceCountName)
+	}
+	coresTotal, _ := n.Status.Capacity.Name(corev1.ResourceName(dev.resourceCoreName), resource.DecimalSI).AsInt64()
+	if dev.coresPerAWSNeuron == 0 {
+		dev.coresPerAWSNeuron = uint(coresTotal) / uint(counts)
+	}
+	dev.coremask = 0
+	for i < int(dev.coresPerAWSNeuron) {
+		dev.coremask *= 2
+		dev.coremask++
+		i++
+	}
+	i = 0
+	customInfo := map[string]any{}
+	customInfo[AWSNodeType] = n.Labels["node.kubernetes.io/instance-type"]
+
+	for int64(i) < counts {
+		nodedevices = append(nodedevices, &device.DeviceInfo{
+			Index:        uint(i),
+			ID:           n.Name + "-" + AWSNeuronDevice + "-" + fmt.Sprint(i),
+			Count:        int32(dev.coresPerAWSNeuron),
+			Devmem:       0,
+			Devcore:      int32(dev.coremask),
+			Type:         AWSNeuronDevice,
+			Numa:         0,
+			Health:       true,
+			CustomInfo:   customInfo,
+			DeviceVendor: AWSNeuronCommonWord,
+		})
+		i++
+	}
+	i = 0
+	for i < len(nodedevices) {
+		klog.V(4).Infoln("Registered AWS nodedevices:", nodedevices[i])
+		i++
+	}
+	return nodedevices, nil
 }
