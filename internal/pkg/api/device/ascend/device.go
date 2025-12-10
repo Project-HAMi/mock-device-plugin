@@ -106,11 +106,13 @@ func (dev *Devices) AddResource(n corev1.Node) {
 		klog.Infof("no device %s on this node", dev.config.CommonWord)
 		return
 	}
+	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	for _, val := range devInfos {
-		mock.Counts[device.GetResourceName(dev.config.ResourceMemoryName)] += int(val.Devmem)
+		mock.Counts[resourceName] += int(val.Devmem)
 	}
+	klog.Infof("Adding resource %s count %d", resourceName, mock.Counts[resourceName])
 	go func() {
-		dev.lmock.ResUpdateChan <- []string{device.GetResourceName(dev.config.ResourceMemoryName)}
+		dev.lmock.ResUpdateChan <- []string{resourceName}
 	}()
 }
 
