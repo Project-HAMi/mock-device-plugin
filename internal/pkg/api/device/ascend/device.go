@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 
 	corev1 "k8s.io/api/core/v1"
@@ -64,7 +64,7 @@ func InitDevices(config []VNPUConfig) []*Devices {
 			lmock: mock.MockLister{
 				ResUpdateChan: make(chan dpm.PluginNameList),
 				Heartbeat:     make(chan bool),
-				Namespace:     device.GetResourceName(vnpu.ResourceMemoryName),
+				Namespace:     device.GetVendorName(vnpu.ResourceMemoryName),
 			},
 		}
 		sort.Slice(dev.config.Templates, func(i, j int) bool {

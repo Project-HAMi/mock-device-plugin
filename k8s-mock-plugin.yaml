@@ -26,6 +26,10 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
+        command:
+          - ./k8s-device-plugin
+          - -v=5
+          - --device-config-file=/device-config.yaml
         securityContext:
           privileged: true
           allowPrivilegeEscalation: true
@@ -37,6 +41,9 @@ spec:
             mountPath: /var/lib/kubelet/device-plugins
           - name: sys
             mountPath: /sys
+          - name: device-config
+            mountPath: /device-config.yaml
+            subPath: device-config.yaml
       volumes:
         - name: dp
           hostPath:
@@ -44,4 +51,7 @@ spec:
         - name: sys
           hostPath:
             path: /sys
+        - name: device-config
+          configMap:
+            name: hami-scheduler-device
 

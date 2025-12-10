@@ -127,6 +127,13 @@ func GetResourceName(name string) string {
 	return name
 }
 
+func GetVendorName(name string) string {
+	if before, _, found := strings.Cut(name, "/"); found {
+		return before
+	}
+	return name
+}
+
 func UnMarshalNodeDevices(str string) ([]*DeviceInfo, error) {
 	var dlist []*DeviceInfo
 	err := json.Unmarshal([]byte(str), &dlist)
