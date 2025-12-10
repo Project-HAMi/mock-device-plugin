@@ -17,11 +17,12 @@ limitations under the License.
 package kunlun
 
 import (
-	"fmt"
 	"errors"
+	"fmt"
 
-	//"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
+	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 
 	//"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 	corev1 "k8s.io/api/core/v1"
@@ -47,9 +48,7 @@ type KunlunConfig struct {
 }
 
 type KunlunVDevices struct {
-}
-
-func ParseConfig() {
+	resourceNames []string
 }
 
 func InitKunlunVDevice(config KunlunConfig) *KunlunVDevices {
@@ -80,4 +79,34 @@ func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, 
 		return []*device.DeviceInfo{}, errors.New("no device found on node")
 	}
 	return nodeDevices, nil
+}
+
+func (dev *KunlunVDevices) AddResource(n corev1.Node) {
+	devInfos, err := dev.GetNodeDevices(n)
+	if err != nil || len(devInfos) == 0 {
+		klog.Infof("no device %s on this node", dev.CommonWord())
+		return
+	}
+	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
+	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
+	for _, val := range devInfos {
+		mock.Counts[vCountResourceName] += int(val.Devcore)
+		mock.Counts[memoryResourceName] += int(val.Devmem)
+	}
+	dev.resourceNames = append(dev.resourceNames, vCountResourceName, memoryResourceName)
+	klog.InfoS("Add resource", vCountResourceName, mock.Counts[vCountResourceName], memoryResourceName, mock.Counts[memoryResourceName])
+}
+
+func (dev *KunlunVDevices) RunManager() {
+	lmock := mock.MockLister{
+		ResUpdateChan: make(chan dpm.PluginNameList),
+		Heartbeat:     make(chan bool),
+		Namespace:     device.GetVendorName(KunlunResourceVCount),
+	}
+	go func() {
+		lmock.ResUpdateChan <- dev.resourceNames
+	}()
+	mockmanager := dpm.NewManager(&lmock)
+	klog.Infof("Running mocking dp: %s", XPUCommonWord)
+	mockmanager.Run()
 }

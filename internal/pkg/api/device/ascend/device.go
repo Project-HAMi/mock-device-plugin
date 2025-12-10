@@ -51,7 +51,7 @@ type VNPUConfig struct {
 type Devices struct {
 	config           VNPUConfig
 	nodeRegisterAnno string
-	lmock            mock.MockLister
+	resourceNames    []string
 }
 
 func InitDevices(config []VNPUConfig) []*Devices {
@@ -61,11 +61,6 @@ func InitDevices(config []VNPUConfig) []*Devices {
 		dev := &Devices{
 			config:           vnpu,
 			nodeRegisterAnno: fmt.Sprintf("hami.io/node-register-%s", commonWord),
-			lmock: mock.MockLister{
-				ResUpdateChan: make(chan dpm.PluginNameList),
-				Heartbeat:     make(chan bool),
-				Namespace:     device.GetVendorName(vnpu.ResourceMemoryName),
-			},
 		}
 		sort.Slice(dev.config.Templates, func(i, j int) bool {
 			return dev.config.Templates[i].Memory < dev.config.Templates[j].Memory
@@ -110,14 +105,20 @@ func (dev *Devices) AddResource(n corev1.Node) {
 	for _, val := range devInfos {
 		mock.Counts[resourceName] += int(val.Devmem)
 	}
+	dev.resourceNames = append(dev.resourceNames, resourceName)
 	klog.InfoS("Add resource", resourceName, mock.Counts[resourceName])
-	go func() {
-		dev.lmock.ResUpdateChan <- []string{resourceName}
-	}()
 }
 
 func (dev *Devices) RunManager() {
-	mockmanager := dpm.NewManager(&dev.lmock)
+	lmock := mock.MockLister{
+		ResUpdateChan: make(chan dpm.PluginNameList),
+		Heartbeat:     make(chan bool),
+		Namespace:     device.GetVendorName(dev.config.ResourceMemoryName),
+	}
+	go func() {
+		lmock.ResUpdateChan <- dev.resourceNames
+	}()
+	mockmanager := dpm.NewManager(&lmock)
 	klog.Infof("Running mocking dp: %s", dev.config.CommonWord)
 	mockmanager.Run()
 }

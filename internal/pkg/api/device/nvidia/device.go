@@ -78,7 +78,7 @@ type NodeDefaultConfig struct {
 type NvidiaGPUDevices struct {
 	config         NvidiaConfig
 	ReportedGPUNum int64
-	lmock          mock.MockLister
+	resourceNames  []string
 }
 
 func InitNvidiaDevice(nvconfig NvidiaConfig) *NvidiaGPUDevices {
@@ -86,11 +86,6 @@ func InitNvidiaDevice(nvconfig NvidiaConfig) *NvidiaGPUDevices {
 	return &NvidiaGPUDevices{
 		config:         nvconfig,
 		ReportedGPUNum: 0,
-		lmock: mock.MockLister{
-			ResUpdateChan: make(chan dpm.PluginNameList),
-			Heartbeat:     make(chan bool),
-			Namespace:     Vendor,
-		},
 	}
 }
 
@@ -177,24 +172,26 @@ func (dev *NvidiaGPUDevices) AddResource(n corev1.Node) {
 		mock.Counts[memoryPercentageName] += 100
 	}
 	klog.InfoS("Add resources",
-				memoryResourceName,
-				mock.Counts[memoryResourceName],
-				coreResourceName,
-				mock.Counts[coreResourceName],
-				memoryPercentageName,
-				mock.Counts[memoryPercentageName],
-			)
-	go func() {
-		dev.lmock.ResUpdateChan <- []string{
-			memoryResourceName,
-			coreResourceName,
-			memoryPercentageName,
-		}
-	}()
+		memoryResourceName,
+		mock.Counts[memoryResourceName],
+		coreResourceName,
+		mock.Counts[coreResourceName],
+		memoryPercentageName,
+		mock.Counts[memoryPercentageName],
+	)
+	dev.resourceNames = append(dev.resourceNames, memoryResourceName, coreResourceName, memoryPercentageName)
 }
 
 func (dev *NvidiaGPUDevices) RunManager() {
-	mockmanager := dpm.NewManager(&dev.lmock)
+	lmock := mock.MockLister{
+		ResUpdateChan: make(chan dpm.PluginNameList),
+		Heartbeat:     make(chan bool),
+		Namespace:     Vendor,
+	}
+	go func() {
+		lmock.ResUpdateChan <- dev.resourceNames
+	}()
+	mockmanager := dpm.NewManager(&lmock)
 	klog.Infoln("Running mocking dp: nvidia")
 	mockmanager.Run()
 }
