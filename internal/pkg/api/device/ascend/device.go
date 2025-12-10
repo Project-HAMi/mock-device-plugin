@@ -110,7 +110,7 @@ func (dev *Devices) AddResource(n corev1.Node) {
 	for _, val := range devInfos {
 		mock.Counts[resourceName] += int(val.Devmem)
 	}
-	klog.Infof("Adding resource %s count %d", resourceName, mock.Counts[resourceName])
+	klog.InfoS("Add resource", resourceName, mock.Counts[resourceName])
 	go func() {
 		dev.lmock.ResUpdateChan <- []string{resourceName}
 	}()
@@ -120,7 +120,4 @@ func (dev *Devices) RunManager() {
 	mockmanager := dpm.NewManager(&dev.lmock)
 	klog.Infof("Running mocking dp: %s", dev.config.CommonWord)
 	mockmanager.Run()
-}
-
-func ParseConfig() {
 }

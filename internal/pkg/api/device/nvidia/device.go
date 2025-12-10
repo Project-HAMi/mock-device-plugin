@@ -29,7 +29,6 @@ import (
 )
 
 const (
-	HandshakeAnnos       = "hami.io/node-handshake"
 	RegisterAnnos        = "hami.io/node-nvidia-register"
 	RegisterGPUPairScore = "hami.io/node-nvidia-score"
 	NvidiaGPUDevice      = "NVIDIA"
@@ -169,16 +168,27 @@ func (dev *NvidiaGPUDevices) AddResource(n corev1.Node) {
 		klog.Warning("GetNodeDevices error:", err.Error())
 		return
 	}
+	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
+	coreResourceName := device.GetResourceName(dev.config.ResourceCoreName)
+	memoryPercentageName := device.GetResourceName(dev.config.ResourceMemoryPercentageName)
 	for _, val := range devs {
-		mock.Counts[device.GetResourceName(dev.config.ResourceMemoryName)] += int(val.Devmem)
-		mock.Counts[device.GetResourceName(dev.config.ResourceCoreName)] += int(val.Devcore)
-		mock.Counts[device.GetResourceName(dev.config.ResourceMemoryPercentageName)] += 100
+		mock.Counts[memoryResourceName] += int(val.Devmem)
+		mock.Counts[coreResourceName] += int(val.Devcore)
+		mock.Counts[memoryPercentageName] += 100
 	}
+	klog.InfoS("Add resources",
+				memoryResourceName,
+				mock.Counts[memoryResourceName],
+				coreResourceName,
+				mock.Counts[coreResourceName],
+				memoryPercentageName,
+				mock.Counts[memoryPercentageName],
+			)
 	go func() {
 		dev.lmock.ResUpdateChan <- []string{
-			device.GetResourceName(dev.config.ResourceMemoryName),
-			device.GetResourceName(dev.config.ResourceCoreName),
-			device.GetResourceName(dev.config.ResourceMemoryPercentageName),
+			memoryResourceName,
+			coreResourceName,
+			memoryPercentageName,
 		}
 	}()
 }
@@ -187,7 +197,4 @@ func (dev *NvidiaGPUDevices) RunManager() {
 	mockmanager := dpm.NewManager(&dev.lmock)
 	klog.Infoln("Running mocking dp: nvidia")
 	mockmanager.Run()
-}
-
-func ParseConfig() {
 }

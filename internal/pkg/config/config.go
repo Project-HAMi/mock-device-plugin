@@ -29,8 +29,8 @@ import (
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/awsneuron"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/cambricon"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/enflame"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/iluvatar"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/hygon"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/iluvatar"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/kunlun"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/metax"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device/mthreads"
@@ -100,11 +100,11 @@ func InitDevicesWithConfig(config *Config) error {
 	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
 	if hygonDevice != nil {
 		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice
-	}
-	nvidiaDevice := nvidia.InitNvidiaDevice()
+	}*/
+	nvidiaDevice := nvidia.InitNvidiaDevice(config.NvidiaConfig)
 	if nvidiaDevice != nil {
 		device.DevicesMap[nvidiaDevice.CommonWord()] = nvidiaDevice
-	}*/
+	}
 	return nil
 }
 
@@ -127,12 +127,10 @@ func InitDevices() {
 
 func GlobalFlagSet() {
 	amd.ParseConfig()
-	ascend.ParseConfig()
 	awsneuron.ParseConfig()
 	cambricon.ParseConfig()
 	enflame.ParseConfig()
 	hygon.ParseConfig()
 	kunlun.ParseConfig()
-	nvidia.ParseConfig()
 	flag.StringVar(&configFile, "device-config-file", "", "Path to the device config file")
 }
