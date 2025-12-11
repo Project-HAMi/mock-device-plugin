@@ -43,6 +43,7 @@ type VNPUConfig struct {
 	ResourceMemoryName string     `yaml:"resourceMemoryName"`
 	MemoryAllocatable  int64      `yaml:"memoryAllocatable"`
 	MemoryCapacity     int64      `yaml:"memoryCapacity"`
+	MemoryFactor       int32      `yaml:"memoryFactor"`
 	AICore             int32      `yaml:"aiCore"`
 	AICPU              int32      `yaml:"aiCPU"`
 	Templates          []Template `yaml:"templates"`
@@ -104,6 +105,11 @@ func (dev *Devices) AddResource(n corev1.Node) {
 	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	for _, val := range devInfos {
 		mock.Counts[resourceName] += int(val.Devmem)
+	}
+	if dev.config.MemoryFactor > 1 {
+		rawMemory := mock.Counts[resourceName]
+		mock.Counts[resourceName] /= int(dev.config.MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[resourceName], "factor", dev.config.MemoryFactor)
 	}
 	dev.resourceNames = append(dev.resourceNames, resourceName)
 	klog.InfoS("Add resource", resourceName, mock.Counts[resourceName])
