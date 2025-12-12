@@ -13,7 +13,6 @@
 #  limitations under the License.
 FROM golang:1.21-bullseye AS GOBUILD
 ADD . /device-plugin
-ARG GOPROXY=https://goproxy.cn,direct
 RUN cd /device-plugin && go build -o ./k8s-device-plugin cmd/k8s-device-plugin/main.go
 
 FROM ubuntu:20.04

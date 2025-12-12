@@ -45,18 +45,9 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:master
 
-      - name: Build only
-        if: github.ref != 'refs/heads/master
+      - name: Build and optionally push
         uses: docker/build-push-action@v6.18.0
         with:
             platforms: linux/amd64,linux/arm64
-            push: false
-            tags: projecthami/mock-device-plugin:latest
-
-      - name: Build and push
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
-        uses: docker/build-push-action@v6.18.0
-        with:
-            platforms: linux/amd64,linux/arm64
-            push: true
+            push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/master' }}
             tags: projecthami/mock-device-plugin:latest
