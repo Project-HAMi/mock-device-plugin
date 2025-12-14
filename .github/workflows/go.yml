@@ -14,7 +14,7 @@ on:
     branches: [ "master" ]
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
@@ -24,8 +24,11 @@ jobs:
           go-version: '1.20'
       - name: Build
         run: go build -o ./k8s-device-plugin cmd/k8s-device-plugin/main.go
+      - name: Run tests
+        run: |
+          go test ./internal/pkg/api/... -v
 
-  docker_build:
+  build:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
