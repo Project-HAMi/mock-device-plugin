@@ -64,9 +64,6 @@ var (
 	EnflameResourceNameVGCUPercentage string
 )
 
-func ParseConfig() {
-}
-
 func InitEnflameDevice(config EnflameConfig) *EnflameDevices {
 	EnflameResourceNameVGCU = config.ResourceNameVGCU
 	EnflameResourceNameVGCUPercentage = config.ResourceNameVGCUPercentage

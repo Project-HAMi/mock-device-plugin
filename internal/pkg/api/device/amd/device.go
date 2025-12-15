@@ -46,9 +46,6 @@ type AMDDevices struct {
 	resourceMemoryName string
 }
 
-func ParseConfig() {
-}
-
 func InitAMDGPUDevice(config AMDConfig) *AMDDevices {
 	return &AMDDevices{
 		resourceCountName:  config.ResourceCountName,

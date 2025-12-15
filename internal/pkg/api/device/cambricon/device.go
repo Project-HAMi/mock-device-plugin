@@ -53,9 +53,6 @@ var (
 type CambriconDevices struct {
 }
 
-func ParseConfig() {
-}
-
 func InitMLUDevice(config CambriconConfig) *CambriconDevices {
 	MLUResourceCount = config.ResourceCountName
 	MLUResourceMemory = config.ResourceMemoryName

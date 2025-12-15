@@ -55,9 +55,6 @@ type AWSNeuronDevices struct {
 	coremask          uint
 }
 
-func ParseConfig() {
-}
-
 func InitAWSNeuronDevice(config AWSNeuronConfig) *AWSNeuronDevices {
 	return &AWSNeuronDevices{
 		resourceCountName: config.ResourceCountName,

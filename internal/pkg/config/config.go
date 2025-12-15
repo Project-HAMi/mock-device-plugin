@@ -93,13 +93,13 @@ func InitDevicesWithConfig(config *Config) error {
 	if enflameDevice != nil {
 		device.DevicesMap[enflameDevice.CommonWord()] = enflameDevice
 	}
-	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
-	if hygonDevice != nil {
-		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice
-	}*/
 	kunlunDevice := kunlun.InitKunlunVDevice(config.KunlunConfig)
 	if kunlunDevice != nil {
 		device.DevicesMap[kunlunDevice.CommonWord()] = kunlunDevice
+	}*/
+	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
+	if hygonDevice != nil {
+		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice
 	}
 	nvidiaDevice := nvidia.InitNvidiaDevice(config.NvidiaConfig)
 	if nvidiaDevice != nil {
@@ -126,10 +126,5 @@ func InitDevices() {
 }
 
 func GlobalFlagSet() {
-	amd.ParseConfig()
-	awsneuron.ParseConfig()
-	cambricon.ParseConfig()
-	enflame.ParseConfig()
-	hygon.ParseConfig()
 	flag.StringVar(&configFile, "device-config-file", "", "Path to the device config file")
 }

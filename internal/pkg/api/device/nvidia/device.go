@@ -52,6 +52,7 @@ type NvidiaConfig struct {
 	DefaultMemory                int32  `yaml:"defaultMemory"`
 	DefaultCores                 int32  `yaml:"defaultCores"`
 	DefaultGPUNum                int32  `yaml:"defaultGPUNum"`
+	MemoryFactor                 int32  `yaml:"memoryFactor"`
 	// TODO Whether these should be removed
 	DisableCoreLimit  bool                   `yaml:"disableCoreLimit"`
 	MigGeometriesList []AllowedMigGeometries `yaml:"knownMigGeometries"`
@@ -160,7 +161,7 @@ func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 func (dev *NvidiaGPUDevices) AddResource(n corev1.Node) {
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {
-		klog.Warning("GetNodeDevices error:", err.Error())
+		klog.Infof("no device %s on this node", NvidiaGPUCommonWord)
 		return
 	}
 	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
@@ -170,6 +171,11 @@ func (dev *NvidiaGPUDevices) AddResource(n corev1.Node) {
 		mock.Counts[memoryResourceName] += int(val.Devmem)
 		mock.Counts[coreResourceName] += int(val.Devcore)
 		mock.Counts[memoryPercentageName] += 100
+	}
+	if dev.config.MemoryFactor > 1 {
+		rawMemory := mock.Counts[memoryResourceName]
+		mock.Counts[memoryResourceName] /= int(dev.config.MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[memoryResourceName], "factor", dev.config.MemoryFactor)
 	}
 	klog.InfoS("Add resources",
 		memoryResourceName,
