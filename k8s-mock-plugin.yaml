@@ -6,13 +6,13 @@ metadata:
 spec:
   selector:
     matchLabels:
-      name: hami-mock-dp-ds
+      app.kubernetes.io/component: hami-mock-device-plugin
   template:
     metadata:
       annotations:
         scheduler.alpha.kubernetes.io/critical-pod: ""
       labels:
-        name: hami-mock-dp-ds
+        app.kubernetes.io/component: hami-mock-device-plugin
     spec:
       serviceAccountName: hami-mock-device-plugin
       tolerations:
