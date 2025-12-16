@@ -17,25 +17,83 @@ limitations under the License.
 package cambricon
 
 import (
-	"flag"
+	"fmt"
 	"strings"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/klog/v2"
+)
+
+type CambriconConfig struct {
+	ResourceCountName  string `yaml:"resourceCountName"`
+	ResourceMemoryName string `yaml:"resourceMemoryName"`
+	ResourceCoreName   string `yaml:"resourceCoreName"`
+}
+
+const (
+	CambriconMLUDevice     = "MLU"
+	CambriconMLUCommonWord = "MLU"
+)
+
+var (
+	MLUResourceCount  string
+	MLUResourceMemory string
+	MLUResourceCores  string
 )
 
 var (
 	ResourceName string
 )
 
+type CambriconDevices struct {
+}
+
+func InitMLUDevice(config CambriconConfig) *CambriconDevices {
+	MLUResourceCount = config.ResourceCountName
+	MLUResourceMemory = config.ResourceMemoryName
+	MLUResourceCores = config.ResourceCoreName
+	return &CambriconDevices{}
+}
+
+func (dev *CambriconDevices) CommonWord() string {
+	return CambriconMLUCommonWord
+}
+
+func (dev *CambriconDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+	nodedevices := []*device.DeviceInfo{}
+	i := 0
+	cards, ok := n.Status.Capacity.Name(corev1.ResourceName(MLUResourceCores), resource.DecimalSI).AsInt64()
+	if !ok || cards == 0 {
+		return []*device.DeviceInfo{}, fmt.Errorf("device not found %s", MLUResourceCores)
+	}
+	memoryTotal, _ := n.Status.Capacity.Name(corev1.ResourceName(MLUResourceMemory), resource.DecimalSI).AsInt64()
+	for int64(i)*100 < cards {
+		nodedevices = append(nodedevices, &device.DeviceInfo{
+			Index:        uint(i),
+			ID:           n.Name + "-cambricon-mlu-" + fmt.Sprint(i),
+			Count:        100,
+			Devmem:       int32(memoryTotal * 256 * 100 / cards),
+			Devcore:      100,
+			Type:         CambriconMLUDevice,
+			Numa:         0,
+			Health:       true,
+			DeviceVendor: CambriconMLUCommonWord,
+		})
+		i++
+	}
+	return nodedevices, nil
+}
+
 type CambriconMLUDevices struct {
 	DM *dpm.Manager
 }
 
-func InitCambriconDevice(n *v1.Node) *CambriconMLUDevices {
+func InitCambriconDevice(n *corev1.Node) *CambriconMLUDevices {
 	num, ok := n.Status.Allocatable["cambricon.com/real-mlu-counts"]
 	if !ok {
 		return nil
@@ -66,8 +124,4 @@ func (dev *CambriconMLUDevices) RunManager() {
 	}()
 	klog.Infoln("Running mocking dp:cambricon")
 	mockmanager.Run()
-}
-
-func ParseConfig() {
-	flag.StringVar(&ResourceName, "mlu-resource-name", "cambricon.com/vmlu", "virtual devices for mlu to be allocated")
 }

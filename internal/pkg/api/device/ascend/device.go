@@ -17,57 +17,114 @@ limitations under the License.
 package ascend
 
 import (
-	"flag"
-	"strings"
+	"errors"
+	"fmt"
+	"sort"
 
+	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 )
 
-var (
-	ResourceMemoryName string
-)
-
-type AscendNPUDevices struct {
-	DM *dpm.Manager
+type Template struct {
+	Name   string `yaml:"name"`
+	Memory int64  `yaml:"memory"`
+	AICore int32  `yaml:"aiCore,omitempty"`
+	AICPU  int32  `yaml:"aiCPU,omitempty"`
 }
 
-func InitAscendDevice(n *v1.Node) *AscendNPUDevices {
-	num, ok := n.Status.Allocatable["huawei.com/Ascend910"]
-	if !ok {
-		return nil
-	}
-	count, ok := num.AsInt64()
-	if !ok {
-		return nil
-	}
-
-	dev := &AscendNPUDevices{}
-	index := strings.Index(ResourceMemoryName, "/")
-	mock.Counts[ResourceMemoryName[index+1:]] = int(count) / 10 * 65536
-	return dev
+type VNPUConfig struct {
+	CommonWord         string     `yaml:"commonWord"`
+	ChipName           string     `yaml:"chipName"`
+	ResourceName       string     `yaml:"resourceName"`
+	ResourceMemoryName string     `yaml:"resourceMemoryName"`
+	MemoryAllocatable  int64      `yaml:"memoryAllocatable"`
+	MemoryCapacity     int64      `yaml:"memoryCapacity"`
+	MemoryFactor       int32      `yaml:"memoryFactor"`
+	AICore             int32      `yaml:"aiCore"`
+	AICPU              int32      `yaml:"aiCPU"`
+	Templates          []Template `yaml:"templates"`
 }
 
-func (dev *AscendNPUDevices) RunManager() {
-	klog.Infoln("runManager.....")
-	index := strings.Index(ResourceMemoryName, "/")
+type Devices struct {
+	config           VNPUConfig
+	nodeRegisterAnno string
+	resourceNames    []string
+}
+
+func InitDevices(config []VNPUConfig) []*Devices {
+	var devs []*Devices
+	for _, vnpu := range config {
+		commonWord := vnpu.CommonWord
+		dev := &Devices{
+			config:           vnpu,
+			nodeRegisterAnno: fmt.Sprintf("hami.io/node-register-%s", commonWord),
+		}
+		sort.Slice(dev.config.Templates, func(i, j int) bool {
+			return dev.config.Templates[i].Memory < dev.config.Templates[j].Memory
+		})
+		devs = append(devs, dev)
+		klog.Infof("load ascend vnpu config %s: %v", commonWord, dev.config)
+	}
+	return devs
+}
+
+func (dev *Devices) CommonWord() string {
+	return dev.config.CommonWord
+}
+
+func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+	anno, ok := n.Annotations[dev.nodeRegisterAnno]
+	if !ok {
+		return []*device.DeviceInfo{}, fmt.Errorf("annos not found %s", dev.nodeRegisterAnno)
+	}
+	nodeDevices, err := device.UnMarshalNodeDevices(anno)
+	for idx := range nodeDevices {
+		nodeDevices[idx].DeviceVendor = dev.config.CommonWord
+	}
+	if err != nil {
+		klog.ErrorS(err, "failed to unmarshal node devices", "node", n.Name, "device annotation", anno)
+		return []*device.DeviceInfo{}, err
+	}
+	if len(nodeDevices) == 0 {
+		klog.InfoS("no gpu device found", "node", n.Name, "device annotation", anno)
+		return []*device.DeviceInfo{}, errors.New("no device found on node")
+	}
+	return nodeDevices, nil
+}
+
+func (dev *Devices) AddResource(n corev1.Node) {
+	devInfos, err := dev.GetNodeDevices(n)
+	if err != nil || len(devInfos) == 0 {
+		klog.Infof("no device %s on this node", dev.config.CommonWord)
+		return
+	}
+	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
+	for _, val := range devInfos {
+		mock.Counts[resourceName] += int(val.Devmem)
+	}
+	if dev.config.MemoryFactor > 1 {
+		rawMemory := mock.Counts[resourceName]
+		mock.Counts[resourceName] /= int(dev.config.MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[resourceName], "factor", dev.config.MemoryFactor)
+	}
+	dev.resourceNames = append(dev.resourceNames, resourceName)
+	klog.InfoS("Add resource", resourceName, mock.Counts[resourceName])
+}
+
+func (dev *Devices) RunManager() {
 	lmock := mock.MockLister{
 		ResUpdateChan: make(chan dpm.PluginNameList),
 		Heartbeat:     make(chan bool),
-		Namespace:     ResourceMemoryName[:index],
+		Namespace:     device.GetVendorName(dev.config.ResourceMemoryName),
 	}
-	mockmanager := dpm.NewManager(&lmock)
-
 	go func() {
-		lmock.ResUpdateChan <- []string{ResourceMemoryName[index+1:]}
+		lmock.ResUpdateChan <- dev.resourceNames
 	}()
-	klog.Infoln("Running mocking dp:ascend")
+	mockmanager := dpm.NewManager(&lmock)
+	klog.Infof("Running mocking dp: %s", dev.config.CommonWord)
 	mockmanager.Run()
-}
-
-func ParseConfig() {
-	flag.StringVar(&ResourceMemoryName, "mlu-resource-memory-name", "huawei.com/Ascend910-memory", "virtual memory for npu to be allocated")
 }

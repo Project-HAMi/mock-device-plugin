@@ -19,6 +19,7 @@ package client
 import (
 	"os"
 	"path/filepath"
+	"sync"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -27,19 +28,20 @@ import (
 )
 
 var (
-	KubeClient kubernetes.Interface
+	kubeClient kubernetes.Interface
+	once       sync.Once
 )
 
-func init() {
-	var err error
-	KubeClient, err = NewClient()
-	if err != nil {
-		panic(err)
-	}
-}
-
 func GetClient() kubernetes.Interface {
-	return KubeClient
+	once.Do(func() {
+		var err error
+		kubeClient, err = NewClient()
+		if err != nil {
+			klog.Errorf("Failed to initialize Kubernetes client: %v", err)
+			panic(err)
+		}
+	})
+	return kubeClient
 }
 
 // NewClient connects to an API server.
