@@ -101,8 +101,12 @@ func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 	}
 	nodedevices, err := device.UnMarshalNodeDevices(devEncoded)
 	if err != nil {
-		klog.ErrorS(err, "failed to decode node devices", "node", n.Name, "device annotation", devEncoded)
-		return []*device.DeviceInfo{}, err
+		klog.Infof("decode error. try to decode with old method. error %s", err.Error())
+		nodedevices, err = device.DecodeNodeDevices(devEncoded)
+		if err != nil {
+			klog.ErrorS(err, "failed to decode node devices", "node", n.Name, "device annotation", devEncoded)
+			return []*device.DeviceInfo{}, err
+		}
 	}
 	if len(nodedevices) == 0 {
 		klog.InfoS("no nvidia gpu device found", "node", n.Name, "device annotation", devEncoded)
