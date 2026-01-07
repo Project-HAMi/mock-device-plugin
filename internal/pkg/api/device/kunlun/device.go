@@ -81,14 +81,17 @@ func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, 
 }
 
 func (dev *KunlunVDevices) GetResource(n corev1.Node) map[string]int {
-	resourceMap := make(map[string]int)
+	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
+	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
+	resourceMap := map[string]int{
+		memoryResourceName: 0,
+		vCountResourceName: 0,
+	}
 	devInfos, err := dev.GetNodeDevices(n)
 	if err != nil || len(devInfos) == 0 {
 		klog.Infof("no device %s on this node", dev.CommonWord())
 		return resourceMap
 	}
-	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
-	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
 	for _, val := range devInfos {
 		resourceMap[vCountResourceName] += int(val.Devcore)
 		resourceMap[memoryResourceName] += int(val.Devmem)

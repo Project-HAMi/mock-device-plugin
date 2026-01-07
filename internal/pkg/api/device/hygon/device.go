@@ -88,13 +88,15 @@ func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, erro
 }
 
 func (dev *DCUDevices) GetResource(n corev1.Node) map[string]int {
-	resourceMap := make(map[string]int)
+	memoryResourceName := device.GetResourceName(HygonResourceMemory)
+	resourceMap := map[string]int{
+		memoryResourceName: 0,
+	}
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {
 		klog.Infof("no device %s on this node", dev.CommonWord())
 		return resourceMap
 	}
-	memoryResourceName := device.GetResourceName(HygonResourceMemory)
 	for _, val := range devs {
 		resourceMap[memoryResourceName] += int(val.Devmem)
 	}

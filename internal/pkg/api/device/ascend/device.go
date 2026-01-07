@@ -96,13 +96,15 @@ func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) 
 }
 
 func (dev *Devices) GetResource(n corev1.Node) map[string]int {
-	resourceMap := make(map[string]int)
+	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
+	resourceMap := map[string]int{
+		resourceName: 0,
+	}
 	devInfos, err := dev.GetNodeDevices(n)
 	if err != nil || len(devInfos) == 0 {
 		klog.Infof("no device %s on this node", dev.config.CommonWord)
 		return resourceMap
 	}
-	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	for _, val := range devInfos {
 		resourceMap[resourceName] += int(val.Devmem)
 	}

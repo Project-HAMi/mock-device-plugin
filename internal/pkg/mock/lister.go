@@ -90,10 +90,16 @@ func (l *MockLister) SetResource(resourceMap map[string]int) {
 
 	if pluginNums == 0 {
 		resourceNames := make([]string, 0, len(resourceMap))
-		for name := range resourceMap {
+		hasNoZeroValue := false
+		for name, val := range resourceMap {
 			resourceNames = append(resourceNames, name)
+			if val > 0 {
+				hasNoZeroValue = true
+			}
 		}
-		l.ResUpdateChan <- resourceNames
+		if hasNoZeroValue {
+			l.ResUpdateChan <- resourceNames
+		}
 	} else {
 		for resourceName, val := range resourceMap {
 			if plugin, exists := l.pluginsMap[resourceName]; exists {

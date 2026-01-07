@@ -162,15 +162,19 @@ func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 }
 
 func (dev *NvidiaGPUDevices) GetResource(n corev1.Node) map[string]int {
-	resourceMap := make(map[string]int)
+	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
+	coreResourceName := device.GetResourceName(dev.config.ResourceCoreName)
+	memoryPercentageName := device.GetResourceName(dev.config.ResourceMemoryPercentageName)
+	resourceMap := map[string]int{
+		memoryResourceName:   0,
+		coreResourceName:     0,
+		memoryPercentageName: 0,
+	}
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {
 		klog.Infof("no device %s on this node", NvidiaGPUCommonWord)
 		return resourceMap
 	}
-	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
-	coreResourceName := device.GetResourceName(dev.config.ResourceCoreName)
-	memoryPercentageName := device.GetResourceName(dev.config.ResourceMemoryPercentageName)
 	for _, val := range devs {
 		resourceMap[memoryResourceName] += int(val.Devmem)
 		resourceMap[coreResourceName] += int(val.Devcore)

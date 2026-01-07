@@ -121,9 +121,7 @@ func RunManagers() error {
 func Register(n corev1.Node, l *mock.MockLister, dev Devices) {
 	for {
 		resourceMap := dev.GetResource(n)
-		if len(resourceMap) > 0 {
-			l.SetResource(resourceMap)
-		}
+		l.SetResource(resourceMap)
 		time.Sleep(time.Second * 30)
 	}
 }
