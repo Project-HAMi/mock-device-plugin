@@ -44,6 +44,5 @@ func main() {
 	config.GlobalFlagSet()
 	flag.Parse()
 	config.InitDevices()
-	device.Initialize()
 	device.RunManagers()
 }

@@ -20,14 +20,13 @@ import (
 	"testing"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestDCUDevices_AddResource(t *testing.T) {
-	mock.Counts = make(map[string]int)
+func TestDCUDevices_GetResource(t *testing.T) {
 
 	config := HygonConfig{
 		ResourceCountName:  "hygon.com/dcunum",
@@ -36,7 +35,6 @@ func TestDCUDevices_AddResource(t *testing.T) {
 	}
 
 	t.Run("WithValidAnnotation", func(t *testing.T) {
-		mock.Counts = make(map[string]int)
 		dev := InitDCUDevice(config)
 
 		node := corev1.Node{
@@ -46,18 +44,20 @@ func TestDCUDevices_AddResource(t *testing.T) {
 					RegisterAnnos: "DCU-TR3A380008110601,4,65520,100,DCU-K100_AI,0,true,2,hami:DCU-TPYX300018090901,4,65520,100,DCU-K100_AI,0,true,3,hami:DCU-TPYX300009040801,4,65520,100,DCU-K100_AI,0,true,4,hami:DCU-TR3A380013080301,4,65520,100,DCU-K100_AI,0,true,5,hami:DCU-TPYX300003040301,4,65520,100,DCU-K100_AI,0,true,0,hami:DCU-TPYX360008060301,4,65520,100,DCU-K100_AI,0,true,1,hami:",
 				},
 			},
+			Status: corev1.NodeStatus{
+				Capacity: corev1.ResourceList{
+					corev1.ResourceName(config.ResourceCountName): resource.MustParse("4"),
+				},
+			},
 		}
 
-		dev.AddResource(node)
-		expectedResourceName := device.GetResourceName(config.ResourceMemoryName)
+		result := dev.GetResource(&node)
+		resourceName := device.GetResourceName(config.ResourceMemoryName)
 
-		if len(dev.resourceNames) != 1 || dev.resourceNames[0] != expectedResourceName {
-			t.Errorf("Expected resource name %s, got %v", expectedResourceName, dev.resourceNames)
-		}
 		expectedTotalMemory := 65520 * 6
 
-		if mock.Counts[expectedResourceName] != expectedTotalMemory {
-			t.Errorf("Expected total memory %d, got %d", expectedTotalMemory, mock.Counts[expectedResourceName])
+		if result[resourceName] != expectedTotalMemory {
+			t.Errorf("Expected total memory %d, got %d", expectedTotalMemory, result[resourceName])
 		}
 
 	})

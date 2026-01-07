@@ -48,7 +48,6 @@ type KunlunConfig struct {
 }
 
 type KunlunVDevices struct {
-	resourceNames []string
 }
 
 func InitKunlunVDevice(config KunlunConfig) *KunlunVDevices {
@@ -61,7 +60,7 @@ func (dev *KunlunVDevices) CommonWord() string {
 	return XPUDevice
 }
 
-func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *KunlunVDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	anno, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, fmt.Errorf("annos not found %s", RegisterAnnos)
@@ -81,32 +80,30 @@ func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, 
 	return nodeDevices, nil
 }
 
-func (dev *KunlunVDevices) AddResource(n corev1.Node) {
+func (dev *KunlunVDevices) GetResource(n *corev1.Node) map[string]int {
+	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
+	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
+	resourceMap := map[string]int{
+		memoryResourceName: 0,
+		vCountResourceName: 0,
+	}
 	devInfos, err := dev.GetNodeDevices(n)
 	if err != nil || len(devInfos) == 0 {
 		klog.Infof("no device %s on this node", dev.CommonWord())
-		return
+		return resourceMap
 	}
-	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
-	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
 	for _, val := range devInfos {
-		mock.Counts[vCountResourceName] += int(val.Devcore)
-		mock.Counts[memoryResourceName] += int(val.Devmem)
+		resourceMap[vCountResourceName] += int(val.Devcore)
+		resourceMap[memoryResourceName] += int(val.Devmem)
 	}
-	dev.resourceNames = append(dev.resourceNames, vCountResourceName, memoryResourceName)
-	klog.InfoS("Add resource", vCountResourceName, mock.Counts[vCountResourceName], memoryResourceName, mock.Counts[memoryResourceName])
+	klog.InfoS("Add resource", vCountResourceName, resourceMap[vCountResourceName], memoryResourceName, resourceMap[memoryResourceName])
+	return resourceMap
 }
 
 func (dev *KunlunVDevices) RunManager() {
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     device.GetVendorName(KunlunResourceVCount),
-	}
-	go func() {
-		lmock.ResUpdateChan <- dev.resourceNames
-	}()
-	mockmanager := dpm.NewManager(&lmock)
-	klog.Infof("Running mocking dp: %s", XPUCommonWord)
+	lmock := mock.NewMockLister(device.GetVendorName(KunlunResourceVCount))
+	device.Register(lmock, dev)
+	mockmanager := dpm.NewManager(lmock)
+	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()
 }

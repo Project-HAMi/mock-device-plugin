@@ -35,7 +35,6 @@ type HygonConfig struct {
 }
 
 type DCUDevices struct {
-	resourceNames []string
 }
 
 var (
@@ -63,7 +62,7 @@ func (dev *DCUDevices) CommonWord() string {
 	return HygonDCUCommonWord
 }
 
-func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *DCUDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	devEncoded, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, errors.New("annos not found " + RegisterAnnos)
@@ -85,35 +84,36 @@ func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, erro
 	return nodedevices, nil
 }
 
-func (dev *DCUDevices) AddResource(n corev1.Node) {
+func (dev *DCUDevices) GetResource(n *corev1.Node) map[string]int {
+	memoryResourceName := device.GetResourceName(HygonResourceMemory)
+	resourceMap := map[string]int{
+		memoryResourceName: 0,
+	}
+	if !device.CheckHealthy(n, HygonResourceCount) {
+		klog.Infof("device %s is unhealthy on this node", dev.CommonWord())
+		return resourceMap
+	}
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {
 		klog.Infof("no device %s on this node", dev.CommonWord())
-		return
+		return resourceMap
 	}
-	memoryResourceName := device.GetResourceName(HygonResourceMemory)
 	for _, val := range devs {
-		mock.Counts[memoryResourceName] += int(val.Devmem)
+		resourceMap[memoryResourceName] += int(val.Devmem)
 	}
 	if MemoryFactor > 1 {
-		rawMemory := mock.Counts[memoryResourceName]
-		mock.Counts[memoryResourceName] /= int(MemoryFactor)
-		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[memoryResourceName], "factor", MemoryFactor)
+		rawMemory := resourceMap[memoryResourceName]
+		resourceMap[memoryResourceName] /= int(MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", resourceMap[memoryResourceName], "factor", MemoryFactor)
 	}
-	klog.InfoS("Add resources", memoryResourceName, mock.Counts[memoryResourceName])
-	dev.resourceNames = append(dev.resourceNames, memoryResourceName)
+	klog.InfoS("Add resources", memoryResourceName, resourceMap[memoryResourceName])
+	return resourceMap
 }
 
 func (dev *DCUDevices) RunManager() {
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     device.GetVendorName(HygonResourceMemory),
-	}
-	go func() {
-		lmock.ResUpdateChan <- dev.resourceNames
-	}()
-	mockmanager := dpm.NewManager(&lmock)
-	klog.Infoln("Running mocking dp: nvidia")
+	lmock := mock.NewMockLister(device.GetVendorName(HygonResourceMemory))
+	device.Register(lmock, dev)
+	mockmanager := dpm.NewManager(lmock)
+	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()
 }

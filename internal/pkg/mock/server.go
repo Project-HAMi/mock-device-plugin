@@ -19,6 +19,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"sync/atomic"
 	"time"
 
 	"k8s.io/klog/v2"
@@ -28,7 +29,7 @@ import (
 // Plugin is identical to DevicePluginServer interface of device plugin API.
 type MockPlugin struct {
 	ManagedResource string
-	Count           int
+	count           atomic.Int64
 }
 
 // Start is an optional interface that could be implemented by plugin.
@@ -75,24 +76,24 @@ func (p *MockPlugin) GetPreferredAllocation(context.Context, *kubeletdeviceplugi
 // Whenever a Device state change or a Device disappears, ListAndWatch
 // returns the new list
 func (p *MockPlugin) ListAndWatch(e *kubeletdevicepluginv1beta1.Empty, s kubeletdevicepluginv1beta1.DevicePlugin_ListAndWatchServer) error {
-	devs := make([]*kubeletdevicepluginv1beta1.Device, p.Count)
-	i := 0
 	for {
-		if i >= p.Count {
-			break
+		count := p.GetCount()
+		devs := make([]*kubeletdevicepluginv1beta1.Device, count)
+		i := 0
+		for {
+			if i >= count {
+				break
+			}
+			dev := &kubeletdevicepluginv1beta1.Device{
+				ID:     fmt.Sprintf("mock-devices-id-%d", i),
+				Health: kubeletdevicepluginv1beta1.Healthy,
+			}
+			devs[i] = dev
+			i++
 		}
-		dev := &kubeletdevicepluginv1beta1.Device{
-			ID:     fmt.Sprintf("mock-devices-id-%d", i),
-			Health: kubeletdevicepluginv1beta1.Healthy,
-		}
-		devs[i] = dev
-		i++
-	}
-	klog.Infoln("Device Registered", p.ManagedResource, p.Count)
-	s.Send(&kubeletdevicepluginv1beta1.ListAndWatchResponse{Devices: devs})
-	for {
-		time.Sleep(time.Second * 10)
+		klog.Infoln("Device Registered", p.ManagedResource, count)
 		s.Send(&kubeletdevicepluginv1beta1.ListAndWatchResponse{Devices: devs})
+		time.Sleep(time.Second * 10)
 	}
 }
 
@@ -107,4 +108,12 @@ func (p *MockPlugin) Allocate(ctx context.Context, reqs *kubeletdevicepluginv1be
 	}
 
 	return &response, nil
+}
+
+func (p *MockPlugin) GetCount() int {
+	return int(p.count.Load())
+}
+
+func (p *MockPlugin) SetCount(count int) {
+	p.count.Store(int64(count))
 }

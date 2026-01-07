@@ -79,7 +79,6 @@ type NodeDefaultConfig struct {
 type NvidiaGPUDevices struct {
 	config         NvidiaConfig
 	ReportedGPUNum int64
-	resourceNames  []string
 }
 
 func InitNvidiaDevice(nvconfig NvidiaConfig) *NvidiaGPUDevices {
@@ -94,7 +93,7 @@ func (dev *NvidiaGPUDevices) CommonWord() string {
 	return NvidiaGPUDevice
 }
 
-func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *NvidiaGPUDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	devEncoded, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, errors.New("annos not found " + RegisterAnnos)
@@ -162,46 +161,49 @@ func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 	return nodedevices, nil
 }
 
-func (dev *NvidiaGPUDevices) AddResource(n corev1.Node) {
-	devs, err := dev.GetNodeDevices(n)
-	if err != nil {
-		klog.Infof("no device %s on this node", NvidiaGPUCommonWord)
-		return
-	}
+func (dev *NvidiaGPUDevices) GetResource(n *corev1.Node) map[string]int {
 	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	coreResourceName := device.GetResourceName(dev.config.ResourceCoreName)
 	memoryPercentageName := device.GetResourceName(dev.config.ResourceMemoryPercentageName)
+	resourceMap := map[string]int{
+		memoryResourceName:   0,
+		coreResourceName:     0,
+		memoryPercentageName: 0,
+	}
+	if !device.CheckHealthy(n, dev.config.ResourceCountName) {
+		klog.Infof("device %s is unhealthy on this node", dev.CommonWord())
+		return resourceMap
+	}
+	devs, err := dev.GetNodeDevices(n)
+	if err != nil {
+		klog.Infof("no device %s on this node", NvidiaGPUCommonWord)
+		return resourceMap
+	}
 	for _, val := range devs {
-		mock.Counts[memoryResourceName] += int(val.Devmem)
-		mock.Counts[coreResourceName] += int(val.Devcore)
-		mock.Counts[memoryPercentageName] += 100
+		resourceMap[memoryResourceName] += int(val.Devmem)
+		resourceMap[coreResourceName] += int(val.Devcore)
+		resourceMap[memoryPercentageName] += 100
 	}
 	if dev.config.MemoryFactor > 1 {
-		rawMemory := mock.Counts[memoryResourceName]
-		mock.Counts[memoryResourceName] /= int(dev.config.MemoryFactor)
-		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[memoryResourceName], "factor", dev.config.MemoryFactor)
+		rawMemory := resourceMap[memoryResourceName]
+		resourceMap[memoryResourceName] /= int(dev.config.MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", resourceMap[memoryResourceName], "factor", dev.config.MemoryFactor)
 	}
 	klog.InfoS("Add resources",
 		memoryResourceName,
-		mock.Counts[memoryResourceName],
+		resourceMap[memoryResourceName],
 		coreResourceName,
-		mock.Counts[coreResourceName],
+		resourceMap[coreResourceName],
 		memoryPercentageName,
-		mock.Counts[memoryPercentageName],
+		resourceMap[memoryPercentageName],
 	)
-	dev.resourceNames = append(dev.resourceNames, memoryResourceName, coreResourceName, memoryPercentageName)
+	return resourceMap
 }
 
 func (dev *NvidiaGPUDevices) RunManager() {
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     Vendor,
-	}
-	go func() {
-		lmock.ResUpdateChan <- dev.resourceNames
-	}()
-	mockmanager := dpm.NewManager(&lmock)
-	klog.Infoln("Running mocking dp: nvidia")
+	lmock := mock.NewMockLister(Vendor)
+	go device.Register(lmock, dev)
+	mockmanager := dpm.NewManager(lmock)
+	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()
 }
