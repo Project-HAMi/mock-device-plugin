@@ -6,6 +6,7 @@ require (
 	github.com/ccoveille/go-safecast v1.8.2
 	github.com/kubevirt/device-plugin-manager v1.18.8
 	gopkg.in/yaml.v2 v2.4.0
+	gotest.tools/v3 v3.5.2
 	k8s.io/api v0.28.3
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.3
