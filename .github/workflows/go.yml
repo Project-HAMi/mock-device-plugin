@@ -34,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Docker Login
-        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        if: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master') }}
         uses: docker/login-action@v3.6.0
         with:
             username: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -53,10 +53,10 @@ jobs:
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
             TAG_NAME="${GITHUB_REF#refs/tags/}"
-            echo "tag_name=${TAG_NAME}" >> $GITHUB_OUTPUT
-            echo "Extracted tag: ${TAG_NAME}"
+            echo "VERSION=${TAG_NAME#v}" >> $GITHUB_OUTPUT
+            echo "Extracted version: ${VERSION}"
           else
-            echo "tag_name=latest" >> $GITHUB_OUTPUT
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
           fi
 
       - name: Build and optionally push
@@ -64,4 +64,4 @@ jobs:
         with:
             platforms: linux/amd64,linux/arm64
             push: ${{ github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/master') }}
-            tags: projecthami/mock-device-plugin:${{ steps.tag.outputs.tag_name }}
+            tags: projecthami/mock-device-plugin:${{ steps.tag.outputs.VERSION }}
