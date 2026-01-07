@@ -35,7 +35,6 @@ type HygonConfig struct {
 }
 
 type DCUDevices struct {
-	resourceNames []string
 }
 
 var (
@@ -56,9 +55,7 @@ func InitDCUDevice(config HygonConfig) *DCUDevices {
 	HygonResourceMemory = config.ResourceMemoryName
 	HygonResourceCores = config.ResourceCoreName
 	MemoryFactor = config.MemoryFactor
-	return &DCUDevices{
-		resourceNames: []string{device.GetResourceName(HygonResourceMemory)},
-	}
+	return &DCUDevices{}
 }
 
 func (dev *DCUDevices) CommonWord() string {
@@ -91,6 +88,10 @@ func (dev *DCUDevices) GetResource(n corev1.Node) map[string]int {
 	memoryResourceName := device.GetResourceName(HygonResourceMemory)
 	resourceMap := map[string]int{
 		memoryResourceName: 0,
+	}
+	if !device.CheckHealthy(n, HygonResourceCount) {
+		klog.Infof("device %s is not healthy on this node", dev.CommonWord())
+		return resourceMap
 	}
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {

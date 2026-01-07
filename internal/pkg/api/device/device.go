@@ -30,6 +30,7 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
@@ -233,4 +234,12 @@ func DecodePairScores(pairScores string) (*DevicePairScores, error) {
 		return nil, err
 	}
 	return devicePairScores, nil
+}
+
+func CheckHealthy(n corev1.Node, cardResourceName string) bool {
+	cards, ok := n.Status.Capacity.Name(corev1.ResourceName(cardResourceName), resource.DecimalSI).AsInt64()
+	if !ok || cards == 0 {
+		return false
+	}
+	return true
 }

@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -154,6 +155,7 @@ func TestGetResource(t *testing.T) {
 
 			config := VNPUConfig{
 				CommonWord:         "Ascend310P",
+				ResourceName:       "huawei.com/Ascend310P",
 				ResourceMemoryName: "huawei.com/Ascend310P-memory",
 				MemoryFactor:       tc.memoryFactor,
 			}
@@ -168,6 +170,11 @@ func TestGetResource(t *testing.T) {
 					Name: "test-node",
 					Annotations: map[string]string{
 						"hami.io/node-register-Ascend310P": `[{"id":"id1","devmem":21527},{"id":"id2","devmem":21527}]`,
+					},
+				},
+				Status: corev1.NodeStatus{
+					Capacity: corev1.ResourceList{
+						corev1.ResourceName(config.ResourceName): resource.MustParse("4"),
 					},
 				},
 			}

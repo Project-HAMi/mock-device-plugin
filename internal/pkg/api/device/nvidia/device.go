@@ -170,6 +170,10 @@ func (dev *NvidiaGPUDevices) GetResource(n corev1.Node) map[string]int {
 		coreResourceName:     0,
 		memoryPercentageName: 0,
 	}
+	if !device.CheckHealthy(n, dev.config.ResourceCountName) {
+		klog.Infof("device %s is not healthy on this node", dev.CommonWord())
+		return resourceMap
+	}
 	devs, err := dev.GetNodeDevices(n)
 	if err != nil {
 		klog.Infof("no device %s on this node", NvidiaGPUCommonWord)

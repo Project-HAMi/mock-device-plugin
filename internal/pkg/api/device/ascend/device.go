@@ -100,6 +100,10 @@ func (dev *Devices) GetResource(n corev1.Node) map[string]int {
 	resourceMap := map[string]int{
 		resourceName: 0,
 	}
+	if !device.CheckHealthy(n, dev.config.ResourceName) {
+		klog.Infof("device %s is not healthy on this node", dev.CommonWord())
+		return resourceMap
+	}
 	devInfos, err := dev.GetNodeDevices(n)
 	if err != nil || len(devInfos) == 0 {
 		klog.Infof("no device %s on this node", dev.config.CommonWord)

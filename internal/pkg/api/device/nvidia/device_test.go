@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -50,6 +51,11 @@ func TestGetResource(t *testing.T) {
 				{"id":"GPU-1","index":5,"count":10,"devmem":81920,"devcore":100,"type":"NVIDIA A100-SXM4-80GB","numa":1,"mode":"hami-core","health":true,"devicepairscore":{}},
 				{"id":"GPU-2","index":6,"count":10,"devmem":81920,"devcore":100,"type":"NVIDIA A100-SXM4-80GB","numa":1,"mode":"hami-core","health":true,"devicepairscore":{}}
 				]`,
+			},
+		},
+		Status: corev1.NodeStatus{
+			Capacity: corev1.ResourceList{
+				corev1.ResourceName(config.ResourceCountName): resource.MustParse("4"),
 			},
 		},
 	}
