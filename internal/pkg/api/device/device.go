@@ -74,7 +74,7 @@ type Devices interface {
 	CommonWord() string
 	GetNodeDevices(n *corev1.Node) ([]*DeviceInfo, error)
 	GetResource(n *corev1.Node) map[string]int
-	RunManager(n *corev1.Node)
+	RunManager()
 }
 
 type ResourceNames struct {
@@ -101,16 +101,10 @@ func GetDevices() map[string]Devices {
 }
 
 func RunManagers() error {
-	nodeName := os.Getenv("NODE_NAME")
-	node, err := client.GetClient().CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
-	if err != nil {
-		klog.Error("Get node error", err.Error())
-		return err
-	}
 	for name, dev := range DevicesMap {
 		klog.Infof("%s run manager", name)
 		ch[name] = make(chan int)
-		go dev.RunManager(node)
+		go dev.RunManager()
 	}
 	for _, val := range ch {
 		<-val
@@ -118,10 +112,16 @@ func RunManagers() error {
 	return nil
 }
 
-func Register(n *corev1.Node, l *mock.MockLister, dev Devices) {
+func Register(l *mock.MockLister, dev Devices) {
+	nodeName := os.Getenv("NODE_NAME")
 	for {
-		resourceMap := dev.GetResource(n)
-		l.SetResource(resourceMap)
+		node, err := client.GetClient().CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
+		if err != nil {
+			klog.Error("Get node error", err.Error())
+		} else {
+			resourceMap := dev.GetResource(node)
+			l.SetResource(resourceMap)
+		}
 		time.Sleep(time.Second * 30)
 	}
 }

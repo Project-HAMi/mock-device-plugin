@@ -84,9 +84,9 @@ func (l *MockLister) SetResource(resourceMap map[string]int) {
 		return
 	}
 	l.mutex.Lock()
+	defer l.mutex.Unlock()
 	l.counts = resourceMap
 	pluginNums := len(l.pluginsMap)
-	l.mutex.Unlock()
 
 	if pluginNums == 0 {
 		resourceNames := make([]string, 0, len(resourceMap))

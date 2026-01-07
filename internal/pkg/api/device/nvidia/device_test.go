@@ -176,7 +176,7 @@ func TestGetNodeDevices(t *testing.T) {
 			node := tt.setupNode()
 			dev := tt.setupDev()
 
-			devices, err := dev.GetNodeDevices(node)
+			devices, err := dev.GetNodeDevices(&node)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetNodeDevices() error = %v, wantErr %v", err, tt.wantErr)

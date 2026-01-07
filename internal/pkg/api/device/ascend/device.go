@@ -101,7 +101,7 @@ func (dev *Devices) GetResource(n *corev1.Node) map[string]int {
 		resourceName: 0,
 	}
 	if !device.CheckHealthy(n, dev.config.ResourceName) {
-		klog.Infof("device %s is not healthy on this node", dev.CommonWord())
+		klog.Infof("device %s is unhealthy on this node", dev.CommonWord())
 		return resourceMap
 	}
 	devInfos, err := dev.GetNodeDevices(n)
@@ -121,9 +121,9 @@ func (dev *Devices) GetResource(n *corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *Devices) RunManager(n *corev1.Node) {
+func (dev *Devices) RunManager() {
 	lmock := mock.NewMockLister(device.GetVendorName(dev.config.ResourceMemoryName))
-	go device.Register(n, lmock, dev)
+	go device.Register(lmock, dev)
 	mockmanager := dpm.NewManager(lmock)
 	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()

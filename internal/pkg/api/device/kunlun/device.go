@@ -100,9 +100,9 @@ func (dev *KunlunVDevices) GetResource(n *corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *KunlunVDevices) RunManager(n *corev1.Node) {
+func (dev *KunlunVDevices) RunManager() {
 	lmock := mock.NewMockLister(device.GetVendorName(KunlunResourceVCount))
-	device.Register(n, lmock, dev)
+	device.Register(lmock, dev)
 	mockmanager := dpm.NewManager(lmock)
 	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()
