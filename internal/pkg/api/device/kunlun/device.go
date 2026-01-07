@@ -60,7 +60,7 @@ func (dev *KunlunVDevices) CommonWord() string {
 	return XPUDevice
 }
 
-func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *KunlunVDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	anno, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, fmt.Errorf("annos not found %s", RegisterAnnos)
@@ -80,7 +80,7 @@ func (dev *KunlunVDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, 
 	return nodeDevices, nil
 }
 
-func (dev *KunlunVDevices) GetResource(n corev1.Node) map[string]int {
+func (dev *KunlunVDevices) GetResource(n *corev1.Node) map[string]int {
 	memoryResourceName := device.GetResourceName(KunlunResourceVMemory)
 	vCountResourceName := device.GetResourceName(KunlunResourceVCount)
 	resourceMap := map[string]int{
@@ -100,7 +100,7 @@ func (dev *KunlunVDevices) GetResource(n corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *KunlunVDevices) RunManager(n corev1.Node) {
+func (dev *KunlunVDevices) RunManager(n *corev1.Node) {
 	lmock := mock.NewMockLister(device.GetVendorName(KunlunResourceVCount))
 	device.Register(n, lmock, dev)
 	mockmanager := dpm.NewManager(lmock)

@@ -30,7 +30,6 @@ import (
 
 	"github.com/ccoveille/go-safecast"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/resource"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 )
@@ -73,9 +72,9 @@ type DevicePairScore struct {
 
 type Devices interface {
 	CommonWord() string
-	GetNodeDevices(n corev1.Node) ([]*DeviceInfo, error)
-	GetResource(n corev1.Node) map[string]int
-	RunManager(n corev1.Node)
+	GetNodeDevices(n *corev1.Node) ([]*DeviceInfo, error)
+	GetResource(n *corev1.Node) map[string]int
+	RunManager(n *corev1.Node)
 }
 
 type ResourceNames struct {
@@ -111,7 +110,7 @@ func RunManagers() error {
 	for name, dev := range DevicesMap {
 		klog.Infof("%s run manager", name)
 		ch[name] = make(chan int)
-		go dev.RunManager(*node)
+		go dev.RunManager(node)
 	}
 	for _, val := range ch {
 		<-val
@@ -119,7 +118,7 @@ func RunManagers() error {
 	return nil
 }
 
-func Register(n corev1.Node, l *mock.MockLister, dev Devices) {
+func Register(n *corev1.Node, l *mock.MockLister, dev Devices) {
 	for {
 		resourceMap := dev.GetResource(n)
 		l.SetResource(resourceMap)
@@ -236,10 +235,10 @@ func DecodePairScores(pairScores string) (*DevicePairScores, error) {
 	return devicePairScores, nil
 }
 
-func CheckHealthy(n corev1.Node, cardResourceName string) bool {
-	cards, ok := n.Status.Capacity.Name(corev1.ResourceName(cardResourceName), resource.DecimalSI).AsInt64()
-	if !ok || cards == 0 {
+func CheckHealthy(n *corev1.Node, cardResourceName string) bool {
+	capacity, exists := n.Status.Capacity[corev1.ResourceName(cardResourceName)]
+	if !exists {
 		return false
 	}
-	return true
+	return !capacity.IsZero()
 }

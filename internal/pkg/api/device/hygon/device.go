@@ -62,7 +62,7 @@ func (dev *DCUDevices) CommonWord() string {
 	return HygonDCUCommonWord
 }
 
-func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *DCUDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	devEncoded, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, errors.New("annos not found " + RegisterAnnos)
@@ -84,7 +84,7 @@ func (dev *DCUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, erro
 	return nodedevices, nil
 }
 
-func (dev *DCUDevices) GetResource(n corev1.Node) map[string]int {
+func (dev *DCUDevices) GetResource(n *corev1.Node) map[string]int {
 	memoryResourceName := device.GetResourceName(HygonResourceMemory)
 	resourceMap := map[string]int{
 		memoryResourceName: 0,
@@ -110,7 +110,7 @@ func (dev *DCUDevices) GetResource(n corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *DCUDevices) RunManager(n corev1.Node) {
+func (dev *DCUDevices) RunManager(n *corev1.Node) {
 	lmock := mock.NewMockLister(device.GetVendorName(HygonResourceMemory))
 	device.Register(n, lmock, dev)
 	mockmanager := dpm.NewManager(lmock)

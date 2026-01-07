@@ -51,7 +51,7 @@ func TestDCUDevices_GetResource(t *testing.T) {
 			},
 		}
 
-		result := dev.GetResource(node)
+		result := dev.GetResource(&node)
 		resourceName := device.GetResourceName(config.ResourceMemoryName)
 
 		expectedTotalMemory := 65520 * 6

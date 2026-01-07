@@ -75,7 +75,7 @@ func (dev *Devices) CommonWord() string {
 	return dev.config.CommonWord
 }
 
-func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *Devices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	anno, ok := n.Annotations[dev.nodeRegisterAnno]
 	if !ok {
 		return []*device.DeviceInfo{}, fmt.Errorf("annos not found %s", dev.nodeRegisterAnno)
@@ -95,7 +95,7 @@ func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) 
 	return nodeDevices, nil
 }
 
-func (dev *Devices) GetResource(n corev1.Node) map[string]int {
+func (dev *Devices) GetResource(n *corev1.Node) map[string]int {
 	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	resourceMap := map[string]int{
 		resourceName: 0,
@@ -121,7 +121,7 @@ func (dev *Devices) GetResource(n corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *Devices) RunManager(n corev1.Node) {
+func (dev *Devices) RunManager(n *corev1.Node) {
 	lmock := mock.NewMockLister(device.GetVendorName(dev.config.ResourceMemoryName))
 	go device.Register(n, lmock, dev)
 	mockmanager := dpm.NewManager(lmock)

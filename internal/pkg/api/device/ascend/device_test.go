@@ -179,7 +179,7 @@ func TestGetResource(t *testing.T) {
 				},
 			}
 
-			result := dev.GetResource(node)
+			result := dev.GetResource(&node)
 			resourceName := "Ascend310P-memory"
 
 			actualMemory := result[resourceName]

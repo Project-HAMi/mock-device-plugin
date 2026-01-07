@@ -93,7 +93,7 @@ func (dev *NvidiaGPUDevices) CommonWord() string {
 	return NvidiaGPUDevice
 }
 
-func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) {
+func (dev *NvidiaGPUDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	devEncoded, ok := n.Annotations[RegisterAnnos]
 	if !ok {
 		return []*device.DeviceInfo{}, errors.New("annos not found " + RegisterAnnos)
@@ -161,7 +161,7 @@ func (dev *NvidiaGPUDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 	return nodedevices, nil
 }
 
-func (dev *NvidiaGPUDevices) GetResource(n corev1.Node) map[string]int {
+func (dev *NvidiaGPUDevices) GetResource(n *corev1.Node) map[string]int {
 	memoryResourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	coreResourceName := device.GetResourceName(dev.config.ResourceCoreName)
 	memoryPercentageName := device.GetResourceName(dev.config.ResourceMemoryPercentageName)
@@ -200,7 +200,7 @@ func (dev *NvidiaGPUDevices) GetResource(n corev1.Node) map[string]int {
 	return resourceMap
 }
 
-func (dev *NvidiaGPUDevices) RunManager(n corev1.Node) {
+func (dev *NvidiaGPUDevices) RunManager(n *corev1.Node) {
 	lmock := mock.NewMockLister(Vendor)
 	go device.Register(n, lmock, dev)
 	mockmanager := dpm.NewManager(lmock)

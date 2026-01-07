@@ -61,7 +61,7 @@ func TestGetResource(t *testing.T) {
 	}
 
 	t.Run("Test Nvidia A100 device addition", func(t *testing.T) {
-		result := dev.GetResource(node)
+		result := dev.GetResource(&node)
 
 		expectedMemoryResource := "gpu-memory"
 		expectedCoreResource := "gpu-core"
