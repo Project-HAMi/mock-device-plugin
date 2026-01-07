@@ -18,15 +18,11 @@ package cambricon
 
 import (
 	"fmt"
-	"strings"
 
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
-	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
 
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
-	"k8s.io/klog/v2"
 )
 
 type CambriconConfig struct {
@@ -87,41 +83,4 @@ func (dev *CambriconDevices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo
 		i++
 	}
 	return nodedevices, nil
-}
-
-type CambriconMLUDevices struct {
-	DM *dpm.Manager
-}
-
-func InitCambriconDevice(n *corev1.Node) *CambriconMLUDevices {
-	num, ok := n.Status.Allocatable["cambricon.com/real-mlu-counts"]
-	if !ok {
-		return nil
-	}
-	count, ok := num.AsInt64()
-	if !ok {
-		return nil
-	}
-
-	dev := &CambriconMLUDevices{}
-	index := strings.Index(ResourceName, "/")
-	mock.Counts[ResourceName[index+1:]] = int(count) * 10
-	return dev
-}
-
-func (dev *CambriconMLUDevices) RunManager() {
-	klog.Infoln("runManager.....")
-	index := strings.Index(ResourceName, "/")
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     ResourceName[:index],
-	}
-	mockmanager := dpm.NewManager(&lmock)
-
-	go func() {
-		lmock.ResUpdateChan <- []string{ResourceName[index+1:]}
-	}()
-	klog.Infoln("Running mocking dp:cambricon")
-	mockmanager.Run()
 }

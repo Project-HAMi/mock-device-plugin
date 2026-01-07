@@ -20,14 +20,12 @@ import (
 	"testing"
 
 	"github.com/HAMi/mock-device-plugin/internal/pkg/api/device"
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestDCUDevices_AddResource(t *testing.T) {
-	mock.Counts = make(map[string]int)
+func TestDCUDevices_GetResource(t *testing.T) {
 
 	config := HygonConfig{
 		ResourceCountName:  "hygon.com/dcunum",
@@ -36,7 +34,6 @@ func TestDCUDevices_AddResource(t *testing.T) {
 	}
 
 	t.Run("WithValidAnnotation", func(t *testing.T) {
-		mock.Counts = make(map[string]int)
 		dev := InitDCUDevice(config)
 
 		node := corev1.Node{
@@ -48,7 +45,7 @@ func TestDCUDevices_AddResource(t *testing.T) {
 			},
 		}
 
-		dev.AddResource(node)
+		result := dev.GetResource(node)
 		expectedResourceName := device.GetResourceName(config.ResourceMemoryName)
 
 		if len(dev.resourceNames) != 1 || dev.resourceNames[0] != expectedResourceName {
@@ -56,8 +53,8 @@ func TestDCUDevices_AddResource(t *testing.T) {
 		}
 		expectedTotalMemory := 65520 * 6
 
-		if mock.Counts[expectedResourceName] != expectedTotalMemory {
-			t.Errorf("Expected total memory %d, got %d", expectedTotalMemory, mock.Counts[expectedResourceName])
+		if result[expectedResourceName] != expectedTotalMemory {
+			t.Errorf("Expected total memory %d, got %d", expectedTotalMemory, result[expectedResourceName])
 		}
 
 	})

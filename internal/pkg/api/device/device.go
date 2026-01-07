@@ -23,7 +23,9 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/util/client"
 
 	"github.com/ccoveille/go-safecast"
@@ -71,8 +73,8 @@ type DevicePairScore struct {
 type Devices interface {
 	CommonWord() string
 	GetNodeDevices(n corev1.Node) ([]*DeviceInfo, error)
-	AddResource(n corev1.Node)
-	RunManager()
+	GetResource(n corev1.Node) map[string]int
+	RunManager(n corev1.Node)
 }
 
 type ResourceNames struct {
@@ -98,25 +100,31 @@ func GetDevices() map[string]Devices {
 	return DevicesMap
 }
 
-func Initialize() {
+func RunManagers() error {
 	nodeName := os.Getenv("NODE_NAME")
 	node, err := client.GetClient().CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
 	if err != nil {
-		klog.Infoln("Get node error", err.Error())
+		klog.Error("Get node error", err.Error())
+		return err
 	}
-	for name, val := range DevicesMap {
-		val.AddResource(*node)
-		ch[name] = make(chan int)
-	}
-}
-
-func RunManagers() {
 	for name, dev := range DevicesMap {
 		klog.Infof("%s run manager", name)
-		go dev.RunManager()
+		ch[name] = make(chan int)
+		go dev.RunManager(*node)
 	}
 	for _, val := range ch {
 		<-val
+	}
+	return nil
+}
+
+func Register(n corev1.Node, l *mock.MockLister, dev Devices) {
+	for {
+		resourceMap := dev.GetResource(n)
+		if len(resourceMap) > 0 {
+			l.SetResource(resourceMap)
+		}
+		time.Sleep(time.Second * 30)
 	}
 }
 

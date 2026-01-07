@@ -52,7 +52,6 @@ type VNPUConfig struct {
 type Devices struct {
 	config           VNPUConfig
 	nodeRegisterAnno string
-	resourceNames    []string
 }
 
 func InitDevices(config []VNPUConfig) []*Devices {
@@ -96,35 +95,30 @@ func (dev *Devices) GetNodeDevices(n corev1.Node) ([]*device.DeviceInfo, error) 
 	return nodeDevices, nil
 }
 
-func (dev *Devices) AddResource(n corev1.Node) {
+func (dev *Devices) GetResource(n corev1.Node) map[string]int {
+	resourceMap := make(map[string]int)
 	devInfos, err := dev.GetNodeDevices(n)
 	if err != nil || len(devInfos) == 0 {
 		klog.Infof("no device %s on this node", dev.config.CommonWord)
-		return
+		return resourceMap
 	}
 	resourceName := device.GetResourceName(dev.config.ResourceMemoryName)
 	for _, val := range devInfos {
-		mock.Counts[resourceName] += int(val.Devmem)
+		resourceMap[resourceName] += int(val.Devmem)
 	}
 	if dev.config.MemoryFactor > 1 {
-		rawMemory := mock.Counts[resourceName]
-		mock.Counts[resourceName] /= int(dev.config.MemoryFactor)
-		klog.InfoS("Update memory", "raw", rawMemory, "after", mock.Counts[resourceName], "factor", dev.config.MemoryFactor)
+		rawMemory := resourceMap[resourceName]
+		resourceMap[resourceName] /= int(dev.config.MemoryFactor)
+		klog.InfoS("Update memory", "raw", rawMemory, "after", resourceMap[resourceName], "factor", dev.config.MemoryFactor)
 	}
-	dev.resourceNames = append(dev.resourceNames, resourceName)
-	klog.InfoS("Add resource", resourceName, mock.Counts[resourceName])
+	klog.InfoS("Add resource", resourceName, resourceMap[resourceName])
+	return resourceMap
 }
 
-func (dev *Devices) RunManager() {
-	lmock := mock.MockLister{
-		ResUpdateChan: make(chan dpm.PluginNameList),
-		Heartbeat:     make(chan bool),
-		Namespace:     device.GetVendorName(dev.config.ResourceMemoryName),
-	}
-	go func() {
-		lmock.ResUpdateChan <- dev.resourceNames
-	}()
-	mockmanager := dpm.NewManager(&lmock)
-	klog.Infof("Running mocking dp: %s", dev.config.CommonWord)
+func (dev *Devices) RunManager(n corev1.Node) {
+	lmock := mock.NewMockLister(device.GetVendorName(dev.config.ResourceMemoryName))
+	go device.Register(n, lmock, dev)
+	mockmanager := dpm.NewManager(lmock)
+	klog.Infof("Running mocking dp: %s", dev.CommonWord())
 	mockmanager.Run()
 }

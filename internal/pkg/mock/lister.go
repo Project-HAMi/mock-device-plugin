@@ -14,10 +14,10 @@ limitations under the License.
 package mock
 
 import (
+	"sync"
+
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 )
-
-var Counts = map[string]int{}
 
 // Lister serves as an interface between imlementation and Manager machinery. User passes
 // implementation of this interface to NewManager function. Manager will use it to obtain resource
@@ -26,6 +26,19 @@ type MockLister struct {
 	ResUpdateChan chan dpm.PluginNameList
 	Heartbeat     chan bool
 	Namespace     string
+	counts        map[string]int
+	pluginsMap    map[string]*MockPlugin
+	mutex         sync.Mutex
+}
+
+func NewMockLister(namespace string) *MockLister {
+	return &MockLister{
+		ResUpdateChan: make(chan dpm.PluginNameList),
+		Heartbeat:     make(chan bool),
+		Namespace:     namespace,
+		counts:        make(map[string]int),
+		pluginsMap:    make(map[string]*MockPlugin),
+	}
 }
 
 // GetResourceNamespace must return namespace (vendor ID) of implemented Lister. e.g. for
@@ -56,8 +69,36 @@ func (l *MockLister) Discover(pluginListCh chan dpm.PluginNameList) {
 // e.g. for resource name "color.example.com/red" that would be "red". It must return valid
 // implementation of a PluginInterface.
 func (l *MockLister) NewPlugin(resourceLastName string) dpm.PluginInterface {
-	return &MockPlugin{
+	mockPlugin := MockPlugin{
 		ManagedResource: resourceLastName,
-		Count:           Counts[resourceLastName],
+	}
+	l.mutex.Lock()
+	defer l.mutex.Unlock()
+	mockPlugin.SetCount(l.counts[resourceLastName])
+	l.pluginsMap[resourceLastName] = &mockPlugin
+	return &mockPlugin
+}
+
+func (l *MockLister) SetResource(resourceMap map[string]int) {
+	if len(resourceMap) == 0 {
+		return
+	}
+	l.mutex.Lock()
+	l.counts = resourceMap
+	pluginNums := len(l.pluginsMap)
+	l.mutex.Unlock()
+
+	if pluginNums == 0 {
+		resourceNames := make([]string, 0, len(resourceMap))
+		for name := range resourceMap {
+			resourceNames = append(resourceNames, name)
+		}
+		l.ResUpdateChan <- resourceNames
+	} else {
+		for resourceName, val := range resourceMap {
+			if plugin, exists := l.pluginsMap[resourceName]; exists {
+				plugin.SetCount(val)
+			}
+		}
 	}
 }

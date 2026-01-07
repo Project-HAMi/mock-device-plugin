@@ -18,13 +18,11 @@ package nvidia
 import (
 	"testing"
 
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-func TestAddResource(t *testing.T) {
-	mock.Counts = make(map[string]int)
+func TestGetResource(t *testing.T) {
 
 	// 创建 NVIDIA 设备配置
 	config := NvidiaConfig{
@@ -57,45 +55,26 @@ func TestAddResource(t *testing.T) {
 	}
 
 	t.Run("Test Nvidia A100 device addition", func(t *testing.T) {
-		dev.AddResource(node)
+		result := dev.GetResource(node)
 
 		expectedMemoryResource := "gpu-memory"
 		expectedCoreResource := "gpu-core"
 		expectedMemoryPercentageResource := "gpu-memory-percentage"
 
-		if len(dev.resourceNames) != 3 {
-			t.Errorf("expected 3 resource names, got %d: %v", len(dev.resourceNames), dev.resourceNames)
-		}
-
-		resourceMap := make(map[string]bool)
-		for _, name := range dev.resourceNames {
-			resourceMap[name] = true
-		}
-
-		if !resourceMap[expectedMemoryResource] {
-			t.Errorf("missing memory resource: %s", expectedMemoryResource)
-		}
-		if !resourceMap[expectedCoreResource] {
-			t.Errorf("missing core resource: %s", expectedCoreResource)
-		}
-		if !resourceMap[expectedMemoryPercentageResource] {
-			t.Errorf("missing memory percentage resource: %s", expectedMemoryPercentageResource)
-		}
-
 		expectedTotalMemory := 245760
-		actualMemory := mock.Counts[expectedMemoryResource]
+		actualMemory := result[expectedMemoryResource]
 		if actualMemory != expectedTotalMemory {
 			t.Errorf("expected total memory %d, got %d", expectedTotalMemory, actualMemory)
 		}
 
 		expectedTotalCore := 300
-		actualCore := mock.Counts[expectedCoreResource]
+		actualCore := result[expectedCoreResource]
 		if actualCore != expectedTotalCore {
 			t.Errorf("expected total core %d, got %d", expectedTotalCore, actualCore)
 		}
 
 		expectedTotalMemoryPercentage := 300
-		actualMemoryPercentage := mock.Counts[expectedMemoryPercentageResource]
+		actualMemoryPercentage := result[expectedMemoryPercentageResource]
 		if actualMemoryPercentage != expectedTotalMemoryPercentage {
 			t.Errorf("expected total memory percentage %d, got %d", expectedTotalMemoryPercentage, actualMemoryPercentage)
 		}

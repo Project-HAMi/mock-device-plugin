@@ -5,7 +5,7 @@ Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@ package ascend
 import (
 	"testing"
 
-	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -93,8 +92,6 @@ func TestInitDevices(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mock.Counts = make(map[string]int)
-
 			devices := InitDevices(tt.configs)
 
 			if len(devices) != tt.expectedCount {
@@ -124,7 +121,7 @@ func TestInitDevices(t *testing.T) {
 	}
 }
 
-func TestAddResource(t *testing.T) {
+func TestGetResource(t *testing.T) {
 	testCases := []struct {
 		name           string
 		memoryFactor   int32
@@ -154,7 +151,6 @@ func TestAddResource(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			mock.Counts = make(map[string]int)
 
 			config := VNPUConfig{
 				CommonWord:         "Ascend310P",
@@ -165,7 +161,6 @@ func TestAddResource(t *testing.T) {
 			dev := &Devices{
 				config:           config,
 				nodeRegisterAnno: "hami.io/node-register-Ascend310P",
-				resourceNames:    []string{},
 			}
 
 			node := corev1.Node{
@@ -177,9 +172,10 @@ func TestAddResource(t *testing.T) {
 				},
 			}
 
-			dev.AddResource(node)
+			result := dev.GetResource(node)
+			resourceName := "Ascend310P-memory"
 
-			actualMemory := mock.Counts[dev.resourceNames[0]]
+			actualMemory := result[resourceName]
 
 			if actualMemory != tc.expectedMemory {
 				t.Errorf("MemoryFactor=%d: expected memory %d, got %d",
