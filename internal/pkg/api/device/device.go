@@ -28,7 +28,7 @@ import (
 	"github.com/HAMi/mock-device-plugin/internal/pkg/mock"
 	"github.com/HAMi/mock-device-plugin/internal/pkg/util/client"
 
-	"github.com/ccoveille/go-safecast"
+	"github.com/ccoveille/go-safecast/v2"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
