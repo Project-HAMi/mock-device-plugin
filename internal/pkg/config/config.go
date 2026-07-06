@@ -48,7 +48,7 @@ type Config struct {
 	KunlunConfig    kunlun.KunlunConfig       `yaml:"kunlun"`
 	AWSNeuronConfig awsneuron.AWSNeuronConfig `yaml:"awsneuron"`
 	AMDGPUConfig    amd.AMDConfig             `yaml:"amd"`
-	VNPUs           []ascend.VNPUConfig       `yaml:"vnpus"`
+	VNPUs           ascend.VNPUs              `yaml:"vnpus"`
 }
 
 var (
@@ -76,7 +76,7 @@ func InitDevicesWithConfig(config *Config) error {
 	if amdDevice != nil {
 		device.DevicesMap[amdDevice.CommonWord()] = amdDevice
 	}*/
-	for _, dev := range ascend.InitDevices(config.VNPUs) {
+	for _, dev := range ascend.InitDevices(config.VNPUs.Configs) {
 		commonWord := dev.CommonWord()
 		device.DevicesMap[commonWord] = dev
 		klog.Infof("Ascend device %s initialized", commonWord)
