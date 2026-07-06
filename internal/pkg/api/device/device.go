@@ -52,12 +52,14 @@ type DeviceInfo struct {
 
 type MigTemplate struct {
 	Name   string `yaml:"name"`
+	Core   int32  `yaml:"core"`
 	Memory int32  `yaml:"memory"`
 	Count  int32  `yaml:"count"`
 }
 
 type MigTemplateUsage struct {
 	Name   string `json:"name,omitempty"`
+	Core   int32  `json:"core,omitempty"`
 	Memory int32  `json:"memory,omitempty"`
 	InUse  bool   `json:"inuse,omitempty"`
 }
