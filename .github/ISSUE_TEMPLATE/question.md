@@ -8,6 +8,14 @@ labels: question
 
 **What have you already tried or investigated?**:
 
+**Relevant diagnostics, when applicable**:
+
+- Relevant `hami-scheduler-device` ConfigMap section:
+- Sanitized `hami.io/node-*-register` annotations:
+- Relevant node capacity and allocatable extended resources:
+- Time-bounded mock-device-plugin, kubelet, and scheduler log excerpts:
+- Minimal deployment manifest and reproduction commands:
+
 Before posting, include only relevant, time-bounded excerpts and remove or mask credentials, tokens, private keys, certificates, device identifiers, node or host names, workload identifiers, and internal image names.
 
 **Environment**:
