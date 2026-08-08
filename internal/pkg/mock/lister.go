@@ -14,6 +14,7 @@ limitations under the License.
 package mock
 
 import (
+	"slices"
 	"sync"
 
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
@@ -28,6 +29,7 @@ type MockLister struct {
 	Namespace     string
 	counts        map[string]int
 	pluginsMap    map[string]*MockPlugin
+	resources     dpm.PluginNameList
 	mutex         sync.Mutex
 }
 
@@ -80,31 +82,31 @@ func (l *MockLister) NewPlugin(resourceLastName string) dpm.PluginInterface {
 }
 
 func (l *MockLister) SetResource(resourceMap map[string]int) {
-	if len(resourceMap) == 0 {
-		return
-	}
 	l.mutex.Lock()
-	defer l.mutex.Unlock()
-	l.counts = resourceMap
-	pluginNums := len(l.pluginsMap)
+	l.counts = make(map[string]int, len(resourceMap))
+	resourceNames := make(dpm.PluginNameList, 0, len(resourceMap))
+	hasPositiveValue := false
+	for resourceName, val := range resourceMap {
+		l.counts[resourceName] = val
+		resourceNames = append(resourceNames, resourceName)
+		if val > 0 {
+			hasPositiveValue = true
+		}
+		if plugin, exists := l.pluginsMap[resourceName]; exists {
+			plugin.SetCount(val)
+		}
+	}
+	slices.Sort(resourceNames)
 
-	if pluginNums == 0 {
-		resourceNames := make([]string, 0, len(resourceMap))
-		hasNoZeroValue := false
-		for name, val := range resourceMap {
-			resourceNames = append(resourceNames, name)
-			if val > 0 {
-				hasNoZeroValue = true
-			}
-		}
-		if hasNoZeroValue {
-			l.ResUpdateChan <- resourceNames
-		}
+	resourcesChanged := !slices.Equal(l.resources, resourceNames)
+	if resourcesChanged && (hasPositiveValue || len(l.resources) > 0) {
+		l.resources = slices.Clone(resourceNames)
 	} else {
-		for resourceName, val := range resourceMap {
-			if plugin, exists := l.pluginsMap[resourceName]; exists {
-				plugin.SetCount(val)
-			}
-		}
+		resourcesChanged = false
+	}
+	l.mutex.Unlock()
+
+	if resourcesChanged {
+		l.ResUpdateChan <- resourceNames
 	}
 }
