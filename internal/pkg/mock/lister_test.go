@@ -19,6 +19,7 @@ package mock
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/kubevirt/device-plugin-manager/pkg/dpm"
 )
@@ -69,6 +70,23 @@ func TestSetResourceWaitsForPositiveInitialCount(t *testing.T) {
 	assertResourceUpdate(t, lister.ResUpdateChan, dpm.PluginNameList{"core", "memory"})
 }
 
+func TestSetResourceSerializesConcurrentUpdates(t *testing.T) {
+	lister := NewMockLister("example.com")
+
+	go func() {
+		lister.SetResource(map[string]int{"memory": 4})
+	}()
+	waitForResources(t, lister, dpm.PluginNameList{"memory"})
+
+	go func() {
+		lister.SetResource(map[string]int{"core": 100})
+	}()
+
+	assertResourceUpdateEventually(t, lister.ResUpdateChan, dpm.PluginNameList{"memory"})
+	assertResourceUpdateEventually(t, lister.ResUpdateChan, dpm.PluginNameList{"core"})
+	waitForResources(t, lister, dpm.PluginNameList{"core"})
+}
+
 func assertResourceUpdate(t *testing.T, updates <-chan dpm.PluginNameList, want dpm.PluginNameList) {
 	t.Helper()
 	select {
@@ -88,4 +106,31 @@ func assertNoResourceUpdate(t *testing.T, updates <-chan dpm.PluginNameList) {
 		t.Fatalf("unexpected resource update: %v", got)
 	default:
 	}
+}
+
+func assertResourceUpdateEventually(t *testing.T, updates <-chan dpm.PluginNameList, want dpm.PluginNameList) {
+	t.Helper()
+	select {
+	case got := <-updates:
+		if !slices.Equal(got, want) {
+			t.Fatalf("resource update = %v, want %v", got, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatalf("timed out waiting for resource update %v", want)
+	}
+}
+
+func waitForResources(t *testing.T, lister *MockLister, want dpm.PluginNameList) {
+	t.Helper()
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		lister.mutex.Lock()
+		matched := slices.Equal(lister.resources, want)
+		lister.mutex.Unlock()
+		if matched {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("timed out waiting for committed resources %v", want)
 }

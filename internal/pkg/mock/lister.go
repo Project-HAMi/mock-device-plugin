@@ -31,6 +31,8 @@ type MockLister struct {
 	pluginsMap    map[string]*MockPlugin
 	resources     dpm.PluginNameList
 	mutex         sync.Mutex
+	// publishMutex keeps resource state changes and discovery notifications ordered.
+	publishMutex sync.Mutex
 }
 
 func NewMockLister(namespace string) *MockLister {
@@ -82,6 +84,9 @@ func (l *MockLister) NewPlugin(resourceLastName string) dpm.PluginInterface {
 }
 
 func (l *MockLister) SetResource(resourceMap map[string]int) {
+	l.publishMutex.Lock()
+	defer l.publishMutex.Unlock()
+
 	l.mutex.Lock()
 	l.counts = make(map[string]int, len(resourceMap))
 	resourceNames := make(dpm.PluginNameList, 0, len(resourceMap))
