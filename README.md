@@ -55,7 +55,7 @@ Annotation entry fields:
 | :-- | :-- |
 | `id` | unique device UUID (any string) |
 | `devmem` | per-card memory in MB -- **summed** into `...-memory` |
-| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
+| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **AMD:** physical CU count used by HAMi when converting percentage requests, but the mock registers **100 per healthy card**. **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
 | `count` | per-card split count (informational for the mock) |
 | `type` | device model string |
 | `health` | must be `true` to be counted |
@@ -84,6 +84,34 @@ kubectl annotate node <node> \
 kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("nvidia.com")))'
 # expect: nvidia.com/gpu=10, nvidia.com/gpumem=81920, nvidia.com/gpucores=100, nvidia.com/gpumem-percentage=100
 ```
+
+### AMD GPU (e.g. MI300X)
+
+- config block: `amd:` | annotation: `hami.io/node-amd-register` (JSON) | count: `amd.com/gpu`
+- mock registers: `amd.com/gpumem`, `amd.com/gpucores`
+
+The AMD config must declare all three distinct resource names under the same vendor namespace:
+
+```yaml
+amd:
+  resourceCountName: amd.com/gpu
+  resourceMemoryName: amd.com/gpumem
+  resourceCoreName: amd.com/gpucores
+```
+
+```bash
+# (2) external count resource: one physical card; the mock uses it only as a health gate
+kubectl patch node <node> --subresource=status --type=json \
+  -p '[{"op":"add","path":"/status/capacity/amd.com~1gpu","value":"1"}]'
+# (1) annotation: 1 x MI300X (devmem in MiB; devcore is the physical CU count)
+kubectl annotate node <node> \
+  'hami.io/node-amd-register=[{"id":"AMD-MOCK-0","count":1,"devmem":196608,"devcore":304,"type":"AMD-MI300X","health":true,"numa":0}]'
+# verify (~30s later)
+kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("amd.com")))'
+# expect: amd.com/gpu=1, amd.com/gpumem=196608, amd.com/gpucores=100
+```
+
+HAMi expresses AMD core requests as percentages. Each healthy physical card therefore contributes `100` to `amd.com/gpucores`; the annotation's `devcore` remains the real CU count that HAMi uses to convert the requested percentage into CUs. Unhealthy annotation entries contribute neither memory nor core capacity.
 
 ### Ascend NPU (e.g. 910B4)
 
@@ -153,6 +181,7 @@ The new nested format is tried first; if that fails it falls back to the legacy 
 | Devices    | Mocking Resources |
 | :---       | :----   |
 | Nvidia GPU | `nvidia.com/gpumem`, `nvidia.com/gpumem-percentage`, `nvidia.com/gpucores` |
+| AMD GPU    | `amd.com/gpumem`, `amd.com/gpucores` |
 | Hygon DCU  | `hygon.com/dcumem`, `hygon.com/dcucores` (when `resourceCoreName` is set) |
 | Ascend     | `huawei.com/Ascend{chip}-memory`, `huawei.com/Ascend{chip}-core` (when `resourceCoreName` is set **and** the node is in `hami-vnpu-core` mode) |
 
