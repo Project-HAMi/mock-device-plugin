@@ -18,6 +18,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -71,39 +72,102 @@ func LoadConfig(path string) (*Config, error) {
 }
 
 func InitDevicesWithConfig(config *Config) error {
-	device.DevicesMap = make(map[string]device.Devices)
+	iluvatarDevices, err := iluvatar.InitIluvatarDevices(config.IluvatarConfig)
+	if err != nil {
+		return err
+	}
+	if err := validateIluvatarCommonWordCollisions(config, iluvatarDevices); err != nil {
+		return err
+	}
+	if err := validateIluvatarResourceCollisions(config); err != nil {
+		return err
+	}
+
+	devicesMap := make(map[string]device.Devices)
 	/*amdDevice := amd.InitAMDDevice(config.AMDGPUConfig)
 	if amdDevice != nil {
-		device.DevicesMap[amdDevice.CommonWord()] = amdDevice
+		devicesMap[amdDevice.CommonWord()] = amdDevice
 	}*/
 	for _, dev := range ascend.InitDevices(config.VNPUs) {
 		commonWord := dev.CommonWord()
-		device.DevicesMap[commonWord] = dev
+		devicesMap[commonWord] = dev
 		klog.Infof("Ascend device %s initialized", commonWord)
 	}
 	/*awsNeuronDevice := awsneuron.InitAWSNeuronDevice(config.AWSNeuronConfig)
 	if awsNeuronDevice != nil {
-		device.DevicesMap[awsNeuronDevice.CommonWord()] = awsNeuronDevice
+		devicesMap[awsNeuronDevice.CommonWord()] = awsNeuronDevice
 	}
 	cambriconDevice := cambricon.InitMLUDevice(config.CambriconConfig)
 	if cambriconDevice != nil {
-		device.DevicesMap[cambriconDevice.CommonWord()] = cambriconDevice
+		devicesMap[cambriconDevice.CommonWord()] = cambriconDevice
 	}
 	enflameDevice := enflame.InitEnflameVGCUDevice(config.EnflameConfig)
 	if enflameDevice != nil {
-		device.DevicesMap[enflameDevice.CommonWord()] = enflameDevice
+		devicesMap[enflameDevice.CommonWord()] = enflameDevice
 	}
 	kunlunDevice := kunlun.InitKunlunVDevice(config.KunlunConfig)
 	if kunlunDevice != nil {
-		device.DevicesMap[kunlunDevice.CommonWord()] = kunlunDevice
+		devicesMap[kunlunDevice.CommonWord()] = kunlunDevice
 	}*/
 	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
 	if hygonDevice != nil {
-		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice
+		devicesMap[hygonDevice.CommonWord()] = hygonDevice
 	}
 	nvidiaDevice := nvidia.InitNvidiaDevice(config.NvidiaConfig)
 	if nvidiaDevice != nil {
-		device.DevicesMap[nvidiaDevice.CommonWord()] = nvidiaDevice
+		devicesMap[nvidiaDevice.CommonWord()] = nvidiaDevice
+	}
+	for _, dev := range iluvatarDevices {
+		devicesMap[dev.CommonWord()] = dev
+		klog.Infof("Iluvatar device %s initialized", dev.CommonWord())
+	}
+	device.DevicesMap = devicesMap
+	return nil
+}
+
+func validateIluvatarCommonWordCollisions(config *Config, iluvatarDevices []*iluvatar.IluvatarDevices) error {
+	reserved := map[string]string{
+		hygon.HygonDCUCommonWord: "Hygon",
+		nvidia.NvidiaGPUDevice:   "NVIDIA",
+	}
+	for _, vnpuConfig := range config.VNPUs.Configs {
+		reserved[vnpuConfig.CommonWord] = "Ascend " + vnpuConfig.CommonWord
+	}
+	for _, dev := range iluvatarDevices {
+		if owner, exists := reserved[dev.CommonWord()]; exists {
+			return fmt.Errorf("iluvatar commonWord %q conflicts with %s", dev.CommonWord(), owner)
+		}
+	}
+	return nil
+}
+
+func validateIluvatarResourceCollisions(config *Config) error {
+	reserved := make(map[string]string)
+	add := func(owner, name string) {
+		if name != "" {
+			reserved[name] = owner
+		}
+	}
+
+	add("NVIDIA", config.NvidiaConfig.ResourceCountName)
+	add("NVIDIA", config.NvidiaConfig.ResourceMemoryName)
+	add("NVIDIA", config.NvidiaConfig.ResourceCoreName)
+	add("NVIDIA", config.NvidiaConfig.ResourceMemoryPercentageName)
+	add("Hygon", config.HygonConfig.ResourceCountName)
+	add("Hygon", config.HygonConfig.ResourceMemoryName)
+	add("Hygon", config.HygonConfig.ResourceCoreName)
+	for _, vnpuConfig := range config.VNPUs.Configs {
+		add("Ascend "+vnpuConfig.CommonWord, vnpuConfig.ResourceName)
+		add("Ascend "+vnpuConfig.CommonWord, vnpuConfig.ResourceMemoryName)
+		add("Ascend "+vnpuConfig.CommonWord, vnpuConfig.ResourceCoreName)
+	}
+
+	for idx, iluvatarConfig := range config.IluvatarConfig {
+		for _, name := range []string{iluvatarConfig.ResourceCountName, iluvatarConfig.ResourceMemoryName, iluvatarConfig.ResourceCoreName} {
+			if owner, exists := reserved[name]; exists {
+				return fmt.Errorf("iluvatar config at index %d reuses resource name %q from %s", idx, name, owner)
+			}
+		}
 	}
 	return nil
 }

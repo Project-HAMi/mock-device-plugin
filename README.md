@@ -9,22 +9,30 @@ After deployment these resources show up under `node.status.allocatable` and `no
 
 ## How it works (read this first)
 
-The mock plugin **does not detect hardware**. It does the following every ~30s:
+The mock plugin **does not detect hardware**. It reads the HAMi node-register
+annotation every ~30s and uses one of two resource-registration patterns:
 
 ```text
-  node annotation: hami.io/node-<vendor>-register = [ {devmem, devcore, ...}, ... ]   (1)
-  node capacity:   <count resource> (e.g. nvidia.com/gpu) > 0                          (2)  <- health gate
-                              | mock reads
-                              v
-  registers into allocatable: <vendor>/...mem , <vendor>/...cores , ...
+  supplemental: annotation + existing count capacity > 0 -> memory/core resources
+  fully mocked: annotation -> count + memory + core resources
 ```
 
-On a **real** cluster, (1) and (2) are produced by the real device plugin. In a **mock-only** (no hardware) environment you provide them yourself:
+NVIDIA, Ascend, and Hygon use the supplemental pattern: their existing count
+resource is a health gate. Iluvatar uses the fully mocked pattern because its
+count resource is one of the virtual resources derived from the annotation.
 
-- **(1) the `node-<vendor>-register` annotation** describing the fake cards -- `kubectl annotate`.
-- **(2) the count extended resource** (e.g. `nvidia.com/gpu`) -- patched onto the node `status`.
+On a **real** cluster, the annotation and any external count capacity are
+produced by the real device plugin. In a **mock-only** (no hardware) environment
+you provide the inputs yourself:
 
-> There is **no auto-labeller** in this repo, so (1) and (2) are manual today. Forgetting them is the usual cause of `device xxx is unhealthy` / `no allocation` -- see issues #14 / #16.
+- The `node-<vendor>-register` annotation describing the fake cards --
+  `kubectl annotate`.
+- For supplemental devices only, the count extended resource (for example,
+  `nvidia.com/gpu`) -- patched onto the node `status`.
+
+> There is **no auto-labeller** in this repo, so these inputs are manual today.
+> For a supplemental device, forgetting either input is the usual cause of
+> `device xxx is unhealthy` / `no allocation` -- see issues #14 / #16.
 
 ## Prerequisites
 
@@ -42,23 +50,32 @@ kubectl apply -f k8s-mock-plugin.yaml
 
 ## Understanding the values
 
-The mock **derives the registered resources from the annotation, not from the count resource.** This trips people up, so to be explicit:
+For supplemental devices, the mock derives the registered memory/core resources
+from the annotation, not from the external count resource. For Iluvatar, all
+three resources are derived from the annotation. In detail:
 
-- **Number of fake cards = the number of entries in the annotation array** (not the count value).
-- Registered `...-memory` = **sum of `devmem`** over all entries.
-- Registered `...-cores` / `...-core` = **sum of `devcore`** over all entries.
-- The **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. By convention it is set to `cards x splits-per-card` (e.g. Ascend `2 x VDeviceCount(4) = 8`), but `1` would work equally well for the memory/cores to appear.
+- **Number of fake cards = the number of entries in the annotation** (not the count value).
+- Supplemental devices register **the sum of `devmem`** over annotation entries.
+  Iluvatar counts only healthy entries and converts their total from MiB to
+  256-MiB vMem units with
+  `floor(sum(devmem) / 256)`.
+- Registered cores are normally **the sum of `devcore`** over annotation
+  entries. Iluvatar excludes unhealthy entries; Ascend soft mode ignores
+  `devcore` and contributes 100 per annotation entry.
+- For NVIDIA, Ascend, and Hygon, the **external count resource is only a health
+  gate**: its value just needs to be `> 0`. For Iluvatar, the mock instead
+  registers the count resource as **the sum of `count`** over healthy entries.
 
 Annotation entry fields:
 
 | field | meaning |
 | :-- | :-- |
 | `id` | unique device UUID (any string) |
-| `devmem` | per-card memory in MB -- **summed** into `...-memory` |
-| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
-| `count` | per-card split count (informational for the mock) |
+| `devmem` | per-card memory in MiB. NVIDIA/Hygon/Ascend sum it directly; Iluvatar divides the healthy-device total by 256 to produce vMem units. |
+| `devcore` | per-card cores. **NVIDIA/Hygon/Iluvatar:** summed into the configured core resource. **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
+| `count` | per-card split count. Iluvatar sums it into the configured count resource; it is informational for the other supported mock families. |
 | `type` | device model string |
-| `health` | must be `true` to be counted |
+| `health` | HAMi uses this field when deciding whether a device is allocatable. Iluvatar mock totals also exclude entries where it is `false`. |
 | `index` | card index `0,1,2,...` (`0` may be omitted) |
 | `numa`, `mode` | optional |
 
@@ -66,7 +83,14 @@ Annotation entry fields:
 
 ## Usage by vendor
 
-To mock one card you always need the **three pieces**: the vendor **config block** (in the `hami-scheduler-device` ConfigMap, gives the resource names), the **count extended resource** (passes the health gate), and the **node-register annotation** (describes the fake cards). Replace `<node>` below with your target node. Resource names follow the ConfigMap (HAMi defaults shown). See [Understanding the values](#understanding-the-values) for how the numbers are derived.
+Every device needs its vendor **config block** (in the
+`hami-scheduler-device` ConfigMap) and its **node-register annotation**.
+NVIDIA, Ascend, and Hygon additionally need an external **count extended
+resource** to pass their health gate. Iluvatar's count is generated by the mock.
+Replace `<node>` below with your target node. Resource names follow the
+ConfigMap (HAMi defaults shown). See
+[Understanding the values](#understanding-the-values) for how the numbers are
+derived.
 
 ### NVIDIA (e.g. A100-80GB)
 
@@ -127,6 +151,41 @@ kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.k
 # expect: hygon.com/dcumem=32768, hygon.com/dcucores=200  (2 cards x devcore 100)
 ```
 
+### Iluvatar GPU
+
+- config block: `iluvatars:` | annotation:
+  `hami.io/node-<commonWord>-register` (**CSV**, not JSON)
+- mock registers the configured count, vMem, and vCore resources; no separate
+  count-resource status patch is needed
+
+HAMi's default configuration contains these four entries:
+
+| `commonWord` | count | memory | core |
+| :-- | :-- | :-- | :-- |
+| `MR-V100` | `iluvatar.ai/MR-V100-vgpu` | `iluvatar.ai/MR-V100.vMem` | `iluvatar.ai/MR-V100.vCore` |
+| `MR-V50` | `iluvatar.ai/MR-V50-vgpu` | `iluvatar.ai/MR-V50.vMem` | `iluvatar.ai/MR-V50.vCore` |
+| `BI-V150` | `iluvatar.ai/BI-V150-vgpu` | `iluvatar.ai/BI-V150.vMem` | `iluvatar.ai/BI-V150.vCore` |
+| `BI-V100` | `iluvatar.ai/BI-V100-vgpu` | `iluvatar.ai/BI-V100.vMem` | `iluvatar.ai/BI-V100.vCore` |
+
+The annotation key is derived from the configured `commonWord`. Each device is
+encoded as either the legacy seven-field form
+`id,count,devmem,devcore,type,numa,health:` or the nine-field form that appends
+`index,mode:`.
+
+```bash
+# Two MR-V100 cards. The mock itself registers all three resources.
+kubectl annotate node <node> \
+  'hami.io/node-MR-V100-register=GPU-MOCK-0,10,8192,100,MR-V100,0,true,0,hami-core:GPU-MOCK-1,10,8192,100,MR-V100,0,true,1,hami-core:'
+# verify (~30s later)
+kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("iluvatar.ai/MR-V100")))'
+# expect: MR-V100-vgpu=20, MR-V100.vMem=64, MR-V100.vCore=200
+#          vMem is floor((8192 + 8192) / 256)
+```
+
+Only entries whose `health` field is `true` contribute resources. All three
+resource names in one Iluvatar config must use the same vendor namespace, and
+CommonWords and full resource names must be unique across Iluvatar entries.
+
 ## Ascend config compatibility (new vs legacy)
 
 The Ascend `vnpus` config has two layouts and the plugin accepts **both**:
@@ -155,8 +214,11 @@ The new nested format is tried first; if that fails it falls back to the legacy 
 | Nvidia GPU | `nvidia.com/gpumem`, `nvidia.com/gpumem-percentage`, `nvidia.com/gpucores` |
 | Hygon DCU  | `hygon.com/dcumem`, `hygon.com/dcucores` (when `resourceCoreName` is set) |
 | Ascend     | `huawei.com/Ascend{chip}-memory`, `huawei.com/Ascend{chip}-core` (when `resourceCoreName` is set **and** the node is in `hami-vnpu-core` mode) |
+| Iluvatar   | configured `iluvatar.ai/*-vgpu`, `iluvatar.ai/*.vMem`, and `iluvatar.ai/*.vCore` resources |
 
-**Note:** If the counted memory is too large (e.g. > 120GB) it may display as 0. Set `memoryFactor` in the `hami-scheduler-device` ConfigMap (default 1).
+**Note:** For device configs that expose `memoryFactor` (NVIDIA, Hygon, and
+Ascend), use it when a directly counted memory value is too large for the
+extended resource. Iluvatar uses its fixed 256-MiB vMem conversion instead.
 
 ## Build
 
