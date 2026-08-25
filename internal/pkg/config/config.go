@@ -18,6 +18,7 @@ package config
 
 import (
 	"flag"
+	"fmt"
 	"os"
 
 	"gopkg.in/yaml.v2"
@@ -93,10 +94,16 @@ func InitDevicesWithConfig(config *Config) error {
 	if enflameDevice != nil {
 		device.DevicesMap[enflameDevice.CommonWord()] = enflameDevice
 	}
+	*/
 	kunlunDevice := kunlun.InitKunlunVDevice(config.KunlunConfig)
 	if kunlunDevice != nil {
-		device.DevicesMap[kunlunDevice.CommonWord()] = kunlunDevice
-	}*/
+		commonWord := kunlunDevice.CommonWord()
+		if _, exists := device.DevicesMap[commonWord]; exists {
+			return fmt.Errorf("device common word %q is configured more than once", commonWord)
+		}
+		device.DevicesMap[commonWord] = kunlunDevice
+		klog.Infof("Kunlun device %s initialized", commonWord)
+	}
 	hygonDevice := hygon.InitDCUDevice(config.HygonConfig)
 	if hygonDevice != nil {
 		device.DevicesMap[hygonDevice.CommonWord()] = hygonDevice

@@ -13,18 +13,20 @@ The mock plugin **does not detect hardware**. It does the following every ~30s:
 
 ```text
   node annotation: hami.io/node-<vendor>-register = [ {devmem, devcore, ...}, ... ]   (1)
-  node capacity:   <count resource> (e.g. nvidia.com/gpu) > 0                          (2)  <- health gate
+  node capacity:   <count resource> (e.g. nvidia.com/gpu) > 0                          (2)  <- health gate for supplemental resources
                               | mock reads
                               v
   registers into allocatable: <vendor>/...mem , <vendor>/...cores , ...
 ```
 
-On a **real** cluster, (1) and (2) are produced by the real device plugin. In a **mock-only** (no hardware) environment you provide them yourself:
+On a **real** cluster, each family's required inputs are produced by the real device plugin. In a **mock-only** (no hardware) environment you provide them yourself:
 
 - **(1) the `node-<vendor>-register` annotation** describing the fake cards -- `kubectl annotate`.
-- **(2) the count extended resource** (e.g. `nvidia.com/gpu`) -- patched onto the node `status`.
+- **(2) the count extended resource** (e.g. `nvidia.com/gpu`) -- patched onto the node `status` for NVIDIA, Hygon and Ascend.
 
-> There is **no auto-labeller** in this repo, so (1) and (2) are manual today. Forgetting them is the usual cause of `device xxx is unhealthy` / `no allocation` -- see issues #14 / #16.
+Kunlun vXPU uses only its `hami.io/node-register-xpu` annotation. The mock derives both `kunlunxin.com/vxpu` and `kunlunxin.com/vxpu-memory` from healthy annotation entries, so it does not need a separate count-resource status patch.
+
+> There is **no auto-labeller** in this repo, so the required inputs are manual today. Forgetting them is the usual cause of `device xxx is unhealthy` / `no allocation` -- see issues #14 / #16.
 
 ## Prerequisites
 
@@ -47,7 +49,8 @@ The mock **derives the registered resources from the annotation, not from the co
 - **Number of fake cards = the number of entries in the annotation array** (not the count value).
 - Registered `...-memory` = **sum of `devmem`** over all entries.
 - Registered `...-cores` / `...-core` = **sum of `devcore`** over all entries.
-- The **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. By convention it is set to `cards x splits-per-card` (e.g. Ascend `2 x VDeviceCount(4) = 8`), but `1` would work equally well for the memory/cores to appear.
+- For NVIDIA, Hygon and Ascend, the **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. By convention it is set to `cards x splits-per-card` (e.g. Ascend `2 x VDeviceCount(4) = 8`), but `1` would work equally well for the memory/cores to appear.
+- Kunlun vXPU is fully annotation-derived: `vxpu = sum(devcore)` and `vxpu-memory = sum(devmem)` across entries whose `health` is `true`.
 
 Annotation entry fields:
 
@@ -55,10 +58,10 @@ Annotation entry fields:
 | :-- | :-- |
 | `id` | unique device UUID (any string) |
 | `devmem` | per-card memory in MB -- **summed** into `...-memory` |
-| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
+| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. **Kunlun:** summed into `vxpu`. |
 | `count` | per-card split count (informational for the mock) |
 | `type` | device model string |
-| `health` | must be `true` to be counted |
+| `health` | scheduler-visible health; only healthy Kunlun entries contribute to its mock resources |
 | `index` | card index `0,1,2,...` (`0` may be omitted) |
 | `numa`, `mode` | optional |
 
@@ -66,7 +69,7 @@ Annotation entry fields:
 
 ## Usage by vendor
 
-To mock one card you always need the **three pieces**: the vendor **config block** (in the `hami-scheduler-device` ConfigMap, gives the resource names), the **count extended resource** (passes the health gate), and the **node-register annotation** (describes the fake cards). Replace `<node>` below with your target node. Resource names follow the ConfigMap (HAMi defaults shown). See [Understanding the values](#understanding-the-values) for how the numbers are derived.
+NVIDIA, Hygon and Ascend need the vendor **config block**, the **count extended resource** health gate and the **node-register annotation**. Kunlun vXPU needs its config block and node-register annotation, but not a separate status patch. Replace `<node>` below with your target node. Resource names follow the ConfigMap (HAMi defaults shown). See [Understanding the values](#understanding-the-values) for how the numbers are derived.
 
 ### NVIDIA (e.g. A100-80GB)
 
@@ -127,6 +130,33 @@ kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.k
 # expect: hygon.com/dcumem=32768, hygon.com/dcucores=200  (2 cards x devcore 100)
 ```
 
+### Kunlun vXPU
+
+- config block: `kunlun:` | annotation: `hami.io/node-register-xpu` (JSON)
+- mock registers: `kunlunxin.com/vxpu`, `kunlunxin.com/vxpu-memory`
+- no separate count-resource status patch is required
+
+The default HAMi config is:
+
+```yaml
+kunlun:
+  resourceCountName: kunlunxin.com/xpu
+  resourceVCountName: kunlunxin.com/vxpu
+  resourceVMemoryName: kunlunxin.com/vxpu-memory
+```
+
+To advertise one healthy 24 GiB vXPU:
+
+```bash
+kubectl annotate node <node> \
+  'hami.io/node-register-xpu=[{"id":"XPU-MOCK-0","count":1,"devmem":24576,"devcore":1,"type":"XPU","health":true}]'
+# verify (~30s later)
+kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("kunlunxin.com")))'
+# expect: kunlunxin.com/vxpu=1, kunlunxin.com/vxpu-memory=24576
+```
+
+Each healthy entry contributes its `devcore` value to `vxpu` and its `devmem` value in MiB to `vxpu-memory`. Unhealthy entries remain visible to the HAMi scheduler through the annotation but do not contribute kubelet capacity, matching HAMi's `FitVXPU` health check.
+
 ## Ascend config compatibility (new vs legacy)
 
 The Ascend `vnpus` config has two layouts and the plugin accepts **both**:
@@ -155,8 +185,9 @@ The new nested format is tried first; if that fails it falls back to the legacy 
 | Nvidia GPU | `nvidia.com/gpumem`, `nvidia.com/gpumem-percentage`, `nvidia.com/gpucores` |
 | Hygon DCU  | `hygon.com/dcumem`, `hygon.com/dcucores` (when `resourceCoreName` is set) |
 | Ascend     | `huawei.com/Ascend{chip}-memory`, `huawei.com/Ascend{chip}-core` (when `resourceCoreName` is set **and** the node is in `hami-vnpu-core` mode) |
+| Kunlun vXPU | `kunlunxin.com/vxpu`, `kunlunxin.com/vxpu-memory` |
 
-**Note:** If the counted memory is too large (e.g. > 120GB) it may display as 0. Set `memoryFactor` in the `hami-scheduler-device` ConfigMap (default 1).
+**Note:** For device configs that expose `memoryFactor`, set it in the `hami-scheduler-device` ConfigMap if counted memory is too large (e.g. > 120GB) and displays as 0. Kunlun vXPU does not use `memoryFactor`; its `vxpu-memory` value is the direct sum of healthy entries' `devmem` values.
 
 ## Build
 
