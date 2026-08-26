@@ -114,7 +114,12 @@ kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.k
 
 HAMi expresses AMD core requests as percentages. Each healthy physical card therefore contributes `100` to `amd.com/gpucores`; the annotation's `devcore` remains the real CU count that HAMi uses to convert the requested percentage into CUs. Unhealthy annotation entries contribute neither memory nor core capacity.
 
-The released AMD device plugin reports one MI300X VF with `count: 10`, about `196288` MiB of memory, and `devcore: 304`. The current generic mock expands every MiB of scalar capacity into one Device Plugin API object; a full MI300X response is therefore about 6.76 MiB and exceeds kubelet's default 4 MiB gRPC receive limit. HAMi's AMD configuration does not yet expose an end-to-end `memoryFactor`, so do not use a full MI300X memory value as a working mock example. Supporting that capacity without changing resource semantics requires a matching factor in both HAMi Scheduler and this mock.
+The released AMD device plugin reports one MI300X VF with `count: 10`, about `196288` MiB of memory, and `devcore: 304`. The current generic mock expands every MiB of scalar capacity into one Device Plugin API object; a full MI300X response is therefore about 6.76 MiB and exceeds kubelet's default 4 MiB gRPC receive limit.
+
+> [!IMPORTANT]
+> This is a mock-only transport limitation. The released AMD device plugin registers only ten logical `amd.com/gpu` splits per physical card and carries the full memory/CU values in the Node annotation; it does not send 196288 memory Device objects to kubelet. Do not use this PR to claim full-capacity MI300X mock coverage.
+
+HAMi's AMD configuration does not yet expose an end-to-end `memoryFactor`, so do not use a full MI300X memory value as a working mock example. Supporting that capacity without changing resource semantics requires a matching factor in both HAMi Scheduler and this mock. The reduced 32 GiB inventory above verifies only annotation decoding, resource registration, and Scheduler Filter/Bind behavior.
 
 ### Ascend NPU (e.g. 910B4)
 
