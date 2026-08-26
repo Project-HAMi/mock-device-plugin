@@ -31,6 +31,8 @@ import (
 	"github.com/ccoveille/go-safecast"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 )
 
@@ -77,6 +79,12 @@ type Devices interface {
 	RunManager()
 }
 
+// HandshakeReporter is implemented by device families whose real device
+// plugin acknowledges scheduler health probes through a Node annotation.
+type HandshakeReporter interface {
+	HandshakeAnnotation() string
+}
+
 type ResourceNames struct {
 	ResourceCountName  string
 	ResourceMemoryName string
@@ -114,16 +122,48 @@ func RunManagers() error {
 
 func Register(l *mock.MockLister, dev Devices) {
 	nodeName := os.Getenv("NODE_NAME")
+	kubeClient := client.GetClient()
 	for {
-		node, err := client.GetClient().CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
+		node, err := kubeClient.CoreV1().Nodes().Get(context.Background(), nodeName, v1.GetOptions{})
 		if err != nil {
 			klog.Error("Get node error", err.Error())
 		} else {
 			resourceMap := dev.GetResource(node)
 			l.SetResource(resourceMap)
+			if reporter, ok := dev.(HandshakeReporter); ok {
+				if err := reportHandshake(context.Background(), kubeClient, node, reporter.HandshakeAnnotation()); err != nil {
+					klog.ErrorS(err, "Failed to report device handshake", "node", nodeName, "device", dev.CommonWord())
+				}
+			}
 		}
 		time.Sleep(time.Second * 30)
 	}
+}
+
+func reportHandshake(ctx context.Context, kubeClient kubernetes.Interface, node *corev1.Node, annotation string) error {
+	patch, ok, err := handshakePatch(node, annotation)
+	if err != nil || !ok {
+		return err
+	}
+	_, err = kubeClient.CoreV1().Nodes().Patch(ctx, node.Name, types.JSONPatchType, patch, v1.PatchOptions{})
+	return err
+}
+
+func handshakePatch(node *corev1.Node, annotation string) ([]byte, bool, error) {
+	if node == nil || annotation == "" || node.Annotations == nil {
+		return nil, false, nil
+	}
+	request, ok := node.Annotations[annotation]
+	if !ok || !strings.HasPrefix(request, "Requesting_") {
+		return nil, false, nil
+	}
+
+	annotationPath := strings.NewReplacer("~", "~0", "/", "~1").Replace(annotation)
+	patch, err := json.Marshal([]map[string]string{
+		{"op": "test", "path": "/metadata/annotations/" + annotationPath, "value": request},
+		{"op": "replace", "path": "/metadata/annotations/" + annotationPath, "value": "Reported_" + strings.TrimPrefix(request, "Requesting_")},
+	})
+	return patch, true, err
 }
 
 func GetResourceName(name string) string {

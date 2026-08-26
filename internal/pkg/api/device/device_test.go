@@ -17,10 +17,13 @@ limitations under the License.
 package device
 
 import (
+	"encoding/json"
 	"errors"
 	"testing"
 
 	"gotest.tools/v3/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_DecodeNodeDevices(t *testing.T) {
@@ -100,4 +103,43 @@ func Test_DecodeNodeDevices(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestHandshakePatch(t *testing.T) {
+	const annotation = "hami.io/node-handshake-xpu"
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "mock-node",
+		Annotations: map[string]string{annotation: "Requesting_2026-08-26 03:00:00"},
+	}}
+
+	patch, ok, err := handshakePatch(node, annotation)
+	assert.NilError(t, err)
+	assert.Assert(t, ok)
+	var operations []map[string]string
+	err = json.Unmarshal(patch, &operations)
+	assert.NilError(t, err)
+	assert.Equal(t, len(operations), 2)
+	assert.DeepEqual(t, operations[0], map[string]string{
+		"op":    "test",
+		"path":  "/metadata/annotations/hami.io~1node-handshake-xpu",
+		"value": "Requesting_2026-08-26 03:00:00",
+	})
+	assert.DeepEqual(t, operations[1], map[string]string{
+		"op":    "replace",
+		"path":  "/metadata/annotations/hami.io~1node-handshake-xpu",
+		"value": "Reported_2026-08-26 03:00:00",
+	})
+}
+
+func TestHandshakePatchIgnoresNonRequest(t *testing.T) {
+	const annotation = "hami.io/node-handshake-xpu"
+	node := &corev1.Node{ObjectMeta: metav1.ObjectMeta{
+		Name:        "mock-node",
+		Annotations: map[string]string{annotation: "Reported_2026-08-26 03:00:00"},
+	}}
+
+	patch, ok, err := handshakePatch(node, annotation)
+	assert.NilError(t, err)
+	assert.Assert(t, !ok)
+	assert.Assert(t, patch == nil)
 }

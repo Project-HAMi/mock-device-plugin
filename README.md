@@ -50,7 +50,7 @@ The mock **derives the registered resources from the annotation, not from the co
 - Registered `...-memory` = **sum of `devmem`** over all entries.
 - Registered `...-cores` / `...-core` = **sum of `devcore`** over all entries.
 - For NVIDIA, Hygon and Ascend, the **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. By convention it is set to `cards x splits-per-card` (e.g. Ascend `2 x VDeviceCount(4) = 8`), but `1` would work equally well for the memory/cores to appear.
-- Kunlun vXPU is fully annotation-derived: `vxpu = sum(devcore)` and `vxpu-memory = sum(devmem)` across entries whose `health` is `true`.
+- Kunlun vXPU is fully annotation-derived: `vxpu = sum(count)` and `vxpu-memory = sum(devmem)` across entries whose `health` is `true`.
 
 Annotation entry fields:
 
@@ -58,8 +58,8 @@ Annotation entry fields:
 | :-- | :-- |
 | `id` | unique device UUID (any string) |
 | `devmem` | per-card memory in MB -- **summed** into `...-memory` |
-| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. **Kunlun:** summed into `vxpu`. |
-| `count` | per-card split count (informational for the mock) |
+| `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
+| `count` | per-card split count. **Kunlun:** summed into `vxpu`; informational for the other mocks. |
 | `type` | device model string |
 | `health` | scheduler-visible health; only healthy Kunlun entries contribute to its mock resources |
 | `index` | card index `0,1,2,...` (`0` may be omitted) |
@@ -145,17 +145,17 @@ kunlun:
   resourceVMemoryName: kunlunxin.com/vxpu-memory
 ```
 
-To advertise one healthy 24 GiB vXPU:
+To model one healthy P800-OAM card with four 24 GiB vXPU shares:
 
 ```bash
 kubectl annotate node <node> \
-  'hami.io/node-register-xpu=[{"id":"XPU-MOCK-0","count":1,"devmem":24576,"devcore":1,"type":"XPU","health":true}]'
+  'hami.io/node-register-xpu=[{"id":"XPU-MOCK-0","count":4,"devmem":98304,"devcore":100,"type":"XPU","health":true}]'
 # verify (~30s later)
 kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("kunlunxin.com")))'
-# expect: kunlunxin.com/vxpu=1, kunlunxin.com/vxpu-memory=24576
+# expect: kunlunxin.com/vxpu=4, kunlunxin.com/vxpu-memory=98304
 ```
 
-Each healthy entry contributes its `devcore` value to `vxpu` and its `devmem` value in MiB to `vxpu-memory`. Unhealthy entries remain visible to the HAMi scheduler through the annotation but do not contribute kubelet capacity, matching HAMi's `FitVXPU` health check.
+Each healthy entry contributes its `count` value to `vxpu` and its `devmem` value in MiB to `vxpu-memory`. The mock also acknowledges HAMi Scheduler's `hami.io/node-handshake-xpu` probe, matching the real vXPU device-plugin startup protocol. Unhealthy entries remain visible to the HAMi scheduler through the annotation but do not contribute kubelet capacity, matching HAMi's `FitVXPU` health check.
 
 ## Ascend config compatibility (new vs legacy)
 

@@ -68,6 +68,10 @@ func (dev *KunlunVDevices) CommonWord() string {
 	return XPUDevice
 }
 
+func (dev *KunlunVDevices) HandshakeAnnotation() string {
+	return HandshakeAnnos
+}
+
 func (dev *KunlunVDevices) GetNodeDevices(n *corev1.Node) ([]*device.DeviceInfo, error) {
 	anno, ok := n.Annotations[RegisterAnnos]
 	if !ok {
@@ -110,7 +114,7 @@ func (dev *KunlunVDevices) GetResource(n *corev1.Node) map[string]int {
 		if !val.Health {
 			continue
 		}
-		resourceMap[vCountResourceName] += int(val.Devcore)
+		resourceMap[vCountResourceName] += int(val.Count)
 		resourceMap[memoryResourceName] += int(val.Devmem)
 	}
 	klog.InfoS("Add resource", vCountResourceName, resourceMap[vCountResourceName], memoryResourceName, resourceMap[memoryResourceName])

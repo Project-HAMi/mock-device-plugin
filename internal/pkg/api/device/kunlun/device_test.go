@@ -120,7 +120,7 @@ func TestKunlunVDevicesConfigurationIsPerInstance(t *testing.T) {
 		ResourceVCountName:  "example.com/second-count",
 		ResourceVMemoryName: "example.com/second-memory",
 	})
-	node := nodeWithAnnotation(`[{"id":"XPU-0","devmem":24576,"devcore":1,"type":"XPU","health":true}]`)
+	node := nodeWithAnnotation(`[{"id":"XPU-0","count":1,"devmem":24576,"devcore":100,"type":"XPU","health":true}]`)
 
 	firstResources := first.GetResource(node)
 	if got := firstResources["vxpu"]; got != 1 {
@@ -207,9 +207,9 @@ func TestKunlunVDevicesGetNodeDevices(t *testing.T) {
 func TestKunlunVDevicesGetResourceUsesHealthyAnnotationUnits(t *testing.T) {
 	dev := InitKunlunVDevice(testConfig())
 	node := nodeWithAnnotation(`[
-		{"id":"XPU-0","devmem":24576,"devcore":1,"type":"XPU","health":true},
-		{"id":"XPU-1","index":1,"devmem":49152,"devcore":2,"type":"XPU","health":true},
-		{"id":"XPU-2","index":2,"devmem":98304,"devcore":4,"type":"XPU","health":false}
+		{"id":"XPU-0","count":1,"devmem":24576,"devcore":100,"type":"XPU","health":true},
+		{"id":"XPU-1","index":1,"count":2,"devmem":49152,"devcore":100,"type":"XPU","health":true},
+		{"id":"XPU-2","index":2,"count":4,"devmem":98304,"devcore":100,"type":"XPU","health":false}
 	]`)
 
 	resources := dev.GetResource(node)
