@@ -47,16 +47,16 @@ The mock **derives the registered resources from the annotation, not from the co
 - **Number of fake cards = the number of entries in the annotation array** (not the count value).
 - Registered `...-memory` = **sum of `devmem`** over all entries.
 - Registered `...-cores` / `...-core` = **sum of `devcore`** over all entries.
-- The **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. By convention it is set to `cards x splits-per-card` (e.g. Ascend `2 x VDeviceCount(4) = 8`), but `1` would work equally well for the memory/cores to appear.
+- The **count extended resource is only a health gate**: its value just needs to be `> 0`. It does **not** affect the registered memory/cores. For a production-shaped scheduling test, set it to `cards x splits-per-card` (for example, one AMD card with the default split count advertises `10`), even though `1` is enough for the mock memory/core reducer to appear.
 
 Annotation entry fields:
 
 | field | meaning |
 | :-- | :-- |
 | `id` | unique device UUID (any string) |
-| `devmem` | per-card memory in MB -- **summed** into `...-memory` |
+| `devmem` | per-card memory in MiB -- **summed** into `...-memory` |
 | `devcore` | per-card cores. **NVIDIA/Hygon:** summed into `...-cores` (NVIDIA: percentage, 100 = a whole card). **AMD:** physical CU count used by HAMi when converting percentage requests, but the mock registers **100 per healthy card**. **Ascend:** ignored -- `huawei.com/<chip>-core` is percentage-based, registered as **100 per card**. |
-| `count` | per-card split count (informational for the mock) |
+| `count` | per-card split/concurrency limit used by HAMi Scheduler; the mock memory/core reducer does not sum it |
 | `type` | device model string |
 | `health` | must be `true` to be counted |
 | `index` | card index `0,1,2,...` (`0` may be omitted) |
@@ -85,7 +85,7 @@ kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.k
 # expect: nvidia.com/gpu=10, nvidia.com/gpumem=81920, nvidia.com/gpucores=100, nvidia.com/gpumem-percentage=100
 ```
 
-### AMD GPU (e.g. MI300X)
+### AMD GPU
 
 - config block: `amd:` | annotation: `hami.io/node-amd-register` (JSON) | count: `amd.com/gpu`
 - mock registers: `amd.com/gpumem`, `amd.com/gpucores`
@@ -100,18 +100,21 @@ amd:
 ```
 
 ```bash
-# (2) external count resource: one physical card; the mock uses it only as a health gate
+# (2) external count resource: one card x the AMD plugin's default split count (10)
 kubectl patch node <node> --subresource=status --type=json \
-  -p '[{"op":"add","path":"/status/capacity/amd.com~1gpu","value":"1"}]'
-# (1) annotation: 1 x MI300X (devmem in MiB; devcore is the physical CU count)
+  -p '[{"op":"add","path":"/status/capacity/amd.com~1gpu","value":"10"}]'
+# (1) transport-safe fake inventory for a Scheduler smoke test. devmem is
+# intentionally reduced to 32 GiB; see the MI300X limitation below.
 kubectl annotate node <node> \
-  'hami.io/node-amd-register=[{"id":"AMD-MOCK-0","count":1,"devmem":196608,"devcore":304,"type":"AMD-MI300X","health":true,"numa":0}]'
+  'hami.io/node-amd-register=[{"id":"AMD-MOCK-0","count":10,"devmem":32768,"devcore":304,"type":"AMD-MOCK-32G","health":true,"numa":0}]'
 # verify (~30s later)
 kubectl get node <node> -o json | jq '.status.allocatable|with_entries(select(.key|test("amd.com")))'
-# expect: amd.com/gpu=1, amd.com/gpumem=196608, amd.com/gpucores=100
+# expect: amd.com/gpu=10, amd.com/gpumem=32768, amd.com/gpucores=100
 ```
 
 HAMi expresses AMD core requests as percentages. Each healthy physical card therefore contributes `100` to `amd.com/gpucores`; the annotation's `devcore` remains the real CU count that HAMi uses to convert the requested percentage into CUs. Unhealthy annotation entries contribute neither memory nor core capacity.
+
+The released AMD device plugin reports one MI300X VF with `count: 10`, about `196288` MiB of memory, and `devcore: 304`. The current generic mock expands every MiB of scalar capacity into one Device Plugin API object; a full MI300X response is therefore about 6.76 MiB and exceeds kubelet's default 4 MiB gRPC receive limit. HAMi's AMD configuration does not yet expose an end-to-end `memoryFactor`, so do not use a full MI300X memory value as a working mock example. Supporting that capacity without changing resource semantics requires a matching factor in both HAMi Scheduler and this mock.
 
 ### Ascend NPU (e.g. 910B4)
 
@@ -185,7 +188,7 @@ The new nested format is tried first; if that fails it falls back to the legacy 
 | Hygon DCU  | `hygon.com/dcumem`, `hygon.com/dcucores` (when `resourceCoreName` is set) |
 | Ascend     | `huawei.com/Ascend{chip}-memory`, `huawei.com/Ascend{chip}-core` (when `resourceCoreName` is set **and** the node is in `hami-vnpu-core` mode) |
 
-**Note:** If the counted memory is too large (e.g. > 120GB) it may display as 0. Set `memoryFactor` in the `hami-scheduler-device` ConfigMap (default 1).
+**Note:** If counted memory is too large (e.g. > 120GB), the Device Plugin response may exceed kubelet's receive limit and the resource can display as `0`. Device families whose HAMi configuration exposes `memoryFactor` can reduce the advertised scalar count with the same factor. AMD does not currently have that end-to-end setting; use the reduced smoke-test inventory above until the Scheduler and mock contracts are extended together.
 
 ## Build
 

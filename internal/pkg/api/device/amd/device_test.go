@@ -133,7 +133,7 @@ func TestAMDDevicesGetNodeDevices(t *testing.T) {
 		{
 			name: "valid",
 			annotations: map[string]string{
-				RegisterAnnos: `[{"id":"AMD-MOCK-0","count":2,"devmem":196608,"devcore":304,"type":"AMD-MI300X","health":true}]`,
+				RegisterAnnos: `[{"id":"AMD-MOCK-0","count":10,"devmem":196288,"devcore":304,"type":"AMD Instinct MI300X VF","health":true}]`,
 			},
 		},
 		{name: "missing annotation", wantError: true},
@@ -161,6 +161,9 @@ func TestAMDDevicesGetNodeDevices(t *testing.T) {
 			if got[0].DeviceVendor != AMDCommonWord {
 				t.Fatalf("DeviceVendor = %q, want %q", got[0].DeviceVendor, AMDCommonWord)
 			}
+			if got[0].Count != 10 || got[0].Devmem != 196288 || got[0].Devcore != 304 {
+				t.Fatalf("decoded AMD capacity = count %d, memory %d, cores %d; want 10, 196288, 304", got[0].Count, got[0].Devmem, got[0].Devcore)
+			}
 		})
 	}
 }
@@ -169,9 +172,9 @@ func TestAMDDevicesGetResource(t *testing.T) {
 	config := validAMDConfig()
 	dev := mustInitAMD(t, config)
 	annotation := `[` +
-		`{"id":"AMD-MOCK-0","count":2,"devmem":196608,"devcore":304,"type":"AMD-MI300X","health":true},` +
-		`{"id":"AMD-MOCK-1","count":2,"devmem":128000,"devcore":120,"type":"AMD-MI250","health":true},` +
-		`{"id":"AMD-MOCK-2","count":2,"devmem":64000,"devcore":64,"type":"AMD-MOCK","health":false}` +
+		`{"id":"AMD-MOCK-0","count":10,"devmem":196608,"devcore":304,"type":"AMD-MI300X","health":true},` +
+		`{"id":"AMD-MOCK-1","count":10,"devmem":128000,"devcore":120,"type":"AMD-MI250","health":true},` +
+		`{"id":"AMD-MOCK-2","count":10,"devmem":64000,"devcore":64,"type":"AMD-MOCK","health":false}` +
 		`]`
 
 	tests := []struct {
@@ -184,7 +187,7 @@ func TestAMDDevicesGetResource(t *testing.T) {
 		{
 			name: "healthy cards contribute memory and one hundred core units each",
 			capacity: corev1.ResourceList{
-				corev1.ResourceName(config.ResourceCountName): resource.MustParse("1"),
+				corev1.ResourceName(config.ResourceCountName): resource.MustParse("20"),
 			},
 			annotation: annotation,
 			wantMemory: 324608,
@@ -244,12 +247,12 @@ func TestAMDDevicesKeepConfigPerInstance(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "node-1",
 			Annotations: map[string]string{
-				RegisterAnnos: `[{"id":"AMD-MOCK-0","devmem":1024,"devcore":64,"health":true}]`,
+				RegisterAnnos: `[{"id":"AMD-MOCK-0","count":10,"devmem":1024,"devcore":64,"health":true}]`,
 			},
 		},
 		Status: corev1.NodeStatus{Capacity: corev1.ResourceList{
-			"amd.com/gpu":       resource.MustParse("1"),
-			"example.com/cards": resource.MustParse("1"),
+			"amd.com/gpu":       resource.MustParse("10"),
+			"example.com/cards": resource.MustParse("10"),
 		}},
 	}
 
