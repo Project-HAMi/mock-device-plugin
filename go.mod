@@ -3,7 +3,7 @@ module github.com/HAMi/mock-device-plugin
 go 1.21
 
 require (
-	github.com/ccoveille/go-safecast v1.8.2
+	github.com/ccoveille/go-safecast/v2 v2.0.1
 	github.com/kubevirt/device-plugin-manager v1.18.8
 	gopkg.in/yaml.v2 v2.4.0
 	gotest.tools/v3 v3.5.2
