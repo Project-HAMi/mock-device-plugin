@@ -92,8 +92,14 @@ func (p *MockPlugin) ListAndWatch(e *kubeletdevicepluginv1beta1.Empty, s kubelet
 			i++
 		}
 		klog.Infoln("Device Registered", p.ManagedResource, count)
-		s.Send(&kubeletdevicepluginv1beta1.ListAndWatchResponse{Devices: devs})
-		time.Sleep(time.Second * 10)
+		if err := s.Send(&kubeletdevicepluginv1beta1.ListAndWatchResponse{Devices: devs}); err != nil {
+			return err
+		}
+		select {
+		case <-s.Context().Done():
+			return s.Context().Err()
+		case <-time.After(10 * time.Second):
+		}
 	}
 }
 
